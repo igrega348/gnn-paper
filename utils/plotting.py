@@ -124,7 +124,7 @@ def plot_unit_cell_3d(
     return ax
 
 def plotly_unit_cell_3d(
-    lat, repr='reduced', node_numbers=True, 
+    lat, repr='reduced', node_numbers=False, 
     fig=None, subplot: Optional[dict] = None,
     highlight_nodes: Optional[Iterable] = None,
     show_uc_box: bool = False
