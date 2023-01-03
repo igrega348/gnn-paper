@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>data package &mdash; gnn-paper 0.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/plot_directive.css" type="text/css" />
+      <link rel="stylesheet" href="_static/jupyter-sphinx.css" type="text/css" />
+      <link rel="stylesheet" href="_static/thebelab.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/thebelab-helper.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to gnn-paper’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> gnn-paper
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">data package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#the-lattice-class">The <code class="docutils literal notranslate"><span class="pre">Lattice</span></code> class</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#data.Lattice"><code class="docutils literal notranslate"><span class="pre">Lattice</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.__init__"><code class="docutils literal notranslate"><span class="pre">Lattice.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_UC_volume"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_UC_volume()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_edge_lengths"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_edge_lengths()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_fundamental_representation"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_fundamental_representation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_nodal_connectivity"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_nodal_connectivity()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_node_distances"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_node_distances()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_node_types"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_node_types()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_transformed_coordinates"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_transformed_coordinates()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.check_window_conditions"><code class="docutils literal notranslate"><span class="pre">Lattice.check_window_conditions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.collapse_nodes_onto_boundaries"><code class="docutils literal notranslate"><span class="pre">Lattice.collapse_nodes_onto_boundaries()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.create_windowed"><code class="docutils literal notranslate"><span class="pre">Lattice.create_windowed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.crop_unit_cell"><code class="docutils literal notranslate"><span class="pre">Lattice.crop_unit_cell()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.find_edge_intersections"><code class="docutils literal notranslate"><span class="pre">Lattice.find_edge_intersections()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.find_nodes_on_edges"><code class="docutils literal notranslate"><span class="pre">Lattice.find_nodes_on_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.get_periodic_partners"><code class="docutils literal notranslate"><span class="pre">Lattice.get_periodic_partners()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.get_transform_matrix"><code class="docutils literal notranslate"><span class="pre">Lattice.get_transform_matrix()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.merge_colinear_edges"><code class="docutils literal notranslate"><span class="pre">Lattice.merge_colinear_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.merge_nonunique_nodes"><code class="docutils literal notranslate"><span class="pre">Lattice.merge_nonunique_nodes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.obtain_best_shift_vector"><code class="docutils literal notranslate"><span class="pre">Lattice.obtain_best_shift_vector()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.refine_mesh"><code class="docutils literal notranslate"><span class="pre">Lattice.refine_mesh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.remove_duplicate_edges_adjacency"><code class="docutils literal notranslate"><span class="pre">Lattice.remove_duplicate_edges_adjacency()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.remove_duplicate_edges_nodes"><code class="docutils literal notranslate"><span class="pre">Lattice.remove_duplicate_edges_nodes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.remove_self_incident_edges"><code class="docutils literal notranslate"><span class="pre">Lattice.remove_self_incident_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.set_edge_radii"><code class="docutils literal notranslate"><span class="pre">Lattice.set_edge_radii()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.split_edges_by_points"><code class="docutils literal notranslate"><span class="pre">Lattice.split_edges_by_points()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.to_dict"><code class="docutils literal notranslate"><span class="pre">Lattice.to_dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.update_representations"><code class="docutils literal notranslate"><span class="pre">Lattice.update_representations()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#the-catalogue-class">The <code class="docutils literal notranslate"><span class="pre">Catalogue</span></code> class</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#data.Catalogue"><code class="docutils literal notranslate"><span class="pre">Catalogue</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#data.Catalogue.from_dict"><code class="docutils literal notranslate"><span class="pre">Catalogue.from_dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Catalogue.from_file"><code class="docutils literal notranslate"><span class="pre">Catalogue.from_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Catalogue.get_unit_cell"><code class="docutils literal notranslate"><span class="pre">Catalogue.get_unit_cell()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data.Catalogue.to_file"><code class="docutils literal notranslate"><span class="pre">Catalogue.to_file()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-data.elasticity_func">data.elasticity_func module</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">gnn-paper</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a></li>
+      <li class="breadcrumb-item active">data package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/data.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="data-package">
+<h1>data package<a class="headerlink" href="#data-package" title="Permalink to this heading"></a></h1>
+<section id="the-lattice-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">Lattice</span></code> class<a class="headerlink" href="#the-lattice-class" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="data.Lattice">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">data.</span></span><span class="sig-name descname"><span class="pre">Lattice</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">code</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lattice_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodal_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_adjacency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_coordinates</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Lattice" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">code</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lattice_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodal_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_adjacency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_coordinates</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.__init__" title="Permalink to this definition"></a></dt>
+<dd><p>Construct lattice unit cell.</p>
+<p>Takes in keyword-only arguments.</p>
+<p class="rubric">Examples</p>
+<dl>
+<dt>Three ways of initialisation.</dt><dd><ul class="simple">
+<li><p>by unpacking the catalogue dictionary</p></li>
+</ul>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">data</span> <span class="kn">import</span> <span class="n">Lattice</span><span class="p">,</span> <span class="n">Catalogue</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cat</span> <span class="o">=</span> <span class="n">Catalogue</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;Unit_Cell_Catalog.txt&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="o">**</span><span class="n">cat</span><span class="o">.</span><span class="n">get_unit_cell</span><span class="p">(</span><span class="n">cat</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;name&#39;: &#39;cub_Z06.0_E1&#39;, &#39;num_nodes&#39;: 8, &#39;num_edges&#39;: 12}</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>by specifying node coordinates and edge adjacency</p></li>
+</ul>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">3</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">],[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>              <span class="n">name</span><span class="o">=</span><span class="s1">&#39;pyramid&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;name&#39;: &#39;pyramid&#39;, &#39;num_nodes&#39;: 4, &#39;num_edges&#39;: 6}</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>by specifying edge coordinates</p></li>
+</ul>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">edge_coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">edge_coordinates</span><span class="o">=</span><span class="n">edge_coords</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;pyramid&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;name&#39;: &#39;pyramid&#39;, &#39;num_edges&#39;: 6}</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.calculate_UC_volume">
+<span class="sig-name descname"><span class="pre">calculate_UC_volume</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#data.Lattice.calculate_UC_volume" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate unit cell volume from internally-stored crystal data</p>
+<p>Given internally-stored crystal data
+<span class="math notranslate nohighlight">\(a,b,c,{\alpha},{\beta},{\gamma}\)</span>,
+calculate unit cell volume as</p>
+<div class="math notranslate nohighlight">
+\[abc \sqrt{1 - \cos({\alpha})^2 - \cos(\beta)^2 - \cos(\gamma)^2 + 2\cos(\alpha)\cos(\beta)\cos(\gamma)}\]</div>
+<p>For more details see the supporting information of PNAS paper at
+<a class="reference external" href="https://www.pnas.org/doi/10.1073/pnas.2003504118">https://www.pnas.org/doi/10.1073/pnas.2003504118</a></p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.calculate_edge_lengths">
+<span class="sig-name descname"><span class="pre">calculate_edge_lengths</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">repr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'reduced'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">float64</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.calculate_edge_lengths" title="Permalink to this definition"></a></dt>
+<dd><p>Use reduced nodal coordinates - edge adjacency representation
+as the basis for calculation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>repr</strong> – ‘reduced’ or ‘transformed’ or ‘fundamental’</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>array of shape (num_edges,) with edge lengths</dt><dd><p>in the selected representation</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>edge_lengths</p>
+</dd>
+</dl>
+<p>TODO: is fundamental transformed or not?</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.calculate_fundamental_representation">
+<span class="sig-name descname"><span class="pre">calculate_fundamental_representation</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.calculate_fundamental_representation" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate the fundamental representation of lattice
+which is based on inner nodes and tesselation vectors.</p>
+<p>Operates on reduced node - edge adjacency representation</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.calculate_nodal_connectivity">
+<span class="sig-name descname"><span class="pre">calculate_nodal_connectivity</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">int32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.calculate_nodal_connectivity" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate how many times nodes appear in the edge adjacency map.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>connectivity of each node</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>array[int] (num_nodes,)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.calculate_node_distances">
+<span class="sig-name descname"><span class="pre">calculate_node_distances</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">repr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'reduced'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Lattice.calculate_node_distances" title="Permalink to this definition"></a></dt>
+<dd><p>Find the minimum distance between all pairs of nodes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>repr</strong> – ‘reduced’ or ‘transformed’</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>array of distances
+indices [num_nodes, 2]: indices of nodes corresponding to distances</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>distances [num_nodes]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.calculate_node_types">
+<span class="sig-name descname"><span class="pre">calculate_node_types</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Set</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.calculate_node_types" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate types of nodes from reduced representation</p>
+<dl class="simple">
+<dt>Returns a dictionary with sets of</dt><dd><ul class="simple">
+<li><p>corner nodes (3 d.o.f. lie on UC boundary)</p></li>
+<li><p>edge nodes (2 d.o.f. lie on UC boundary)</p></li>
+<li><p>face nodes (1 d.o.f. lies on UC boundary)</p></li>
+<li><p>inner nodes (no d.o.f lie on UC boundary)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.calculate_transformed_coordinates">
+<span class="sig-name descname"><span class="pre">calculate_transformed_coordinates</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.calculate_transformed_coordinates" title="Permalink to this definition"></a></dt>
+<dd><p>Transform the reduced unit cell coordinates.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.check_window_conditions">
+<span class="sig-name descname"><span class="pre">check_window_conditions</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#data.Lattice.check_window_conditions" title="Permalink to this definition"></a></dt>
+<dd><p>Operate on reduced edge adjacency representation.</p>
+<dl class="simple">
+<dt>Check that</dt><dd><ul class="simple">
+<li><p>minimum reduced node coordinate is 0 and maximum is UC_L (1)</p></li>
+<li><p>the only boundary nodes are face nodes</p></li>
+<li><p>the connectivity of these nodes is 1</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#data.Lattice.calculate_node_types" title="data.Lattice.calculate_node_types"><code class="xref py py-func docutils literal notranslate"><span class="pre">calculate_node_types()</span></code></a>,
+<a class="reference internal" href="#data.Lattice.calculate_nodal_connectivity" title="data.Lattice.calculate_nodal_connectivity"><code class="xref py py-func docutils literal notranslate"><span class="pre">calculate_nodal_connectivity()</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.collapse_nodes_onto_boundaries">
+<span class="sig-name descname"><span class="pre">collapse_nodes_onto_boundaries</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Lattice.collapse_nodes_onto_boundaries" title="Permalink to this definition"></a></dt>
+<dd><p>Collapse nodes which are close to boundaries onto the boundaries.</p>
+<p>Operates on reduced nodal coordinates.
+All nodal coordinates which are very close to 0 or UC_L
+(within tolerance) will be replaced by 0 or UC_L, respectively.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.create_windowed">
+<span class="sig-name descname"><span class="pre">create_windowed</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Lattice" title="data.lattice.Lattice"><span class="pre">Lattice</span></a></span></span><a class="headerlink" href="#data.Lattice.create_windowed" title="Permalink to this definition"></a></dt>
+<dd><p>Create a windowed representation of a lattice</p>
+<p>Operate on reduced node coordinates.
+Return a new lattice instance.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.crop_unit_cell">
+<span class="sig-name descname"><span class="pre">crop_unit_cell</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.crop_unit_cell" title="Permalink to this definition"></a></dt>
+<dd><p>Crop lattice to fit within unit cell window.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">1.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span><span class="o">.</span><span class="n">crop_unit_cell</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//data-1.py">Source code</a>, <a class="reference external" href=".//data-1.png">png</a>, <a class="reference external" href=".//data-1.hires.png">hires.png</a>, <a class="reference external" href=".//data-1.pdf">pdf</a>)</p>
+<figure class="align-default">
+<img alt="_images/data-1.png" class="plot-directive" src="_images/data-1.png" />
+</figure>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#data.Lattice.create_windowed" title="data.Lattice.create_windowed"><code class="xref py py-func docutils literal notranslate"><span class="pre">create_windowed()</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.find_edge_intersections">
+<span class="sig-name descname"><span class="pre">find_edge_intersections</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Set</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.find_edge_intersections" title="Permalink to this definition"></a></dt>
+<dd><p>Find intersections between edge pairs.</p>
+<p>Operates on reduced adjacency representation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>dictionary with edge indices</dt><dd><p>as keys and coordinates of intersection points as values</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>edge_intersection_points</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 4, &#39;num_edges&#39;: 2}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edge_intersections</span> <span class="o">=</span> <span class="n">lat</span><span class="o">.</span><span class="n">find_edge_intersections</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">edge_intersections</span><span class="p">)</span>
+<span class="go">[({0, 2}, array([[0.5, 0.5, 0. ]])), ({1, 3}, array([[0.5, 0.5, 0. ]]))]</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//data-2.py">Source code</a>, <a class="reference external" href=".//data-2.png">png</a>, <a class="reference external" href=".//data-2.hires.png">hires.png</a>, <a class="reference external" href=".//data-2.pdf">pdf</a>)</p>
+<figure class="align-default">
+<img alt="_images/data-2.png" class="plot-directive" src="_images/data-2.png" />
+</figure>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.find_nodes_on_edges">
+<span class="sig-name descname"><span class="pre">find_nodes_on_edges</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Set</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.find_nodes_on_edges" title="Permalink to this definition"></a></dt>
+<dd><p>Find nodes which lie on edges and are not endpoints.</p>
+<p>Returns a list of tuples (edge: set, nodes: coordinates of points that need to split edges)</p>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 3, &#39;num_edges&#39;: 1}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">nodes_on_edges</span> <span class="o">=</span> <span class="n">lat</span><span class="o">.</span><span class="n">find_nodes_on_edges</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">nodes_on_edges</span><span class="p">)</span>
+<span class="go">[({0, 1}, array([[0.5, 0. , 0. ]]))]</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//data-3.py">Source code</a>, <a class="reference external" href=".//data-3.png">png</a>, <a class="reference external" href=".//data-3.hires.png">hires.png</a>, <a class="reference external" href=".//data-3.pdf">pdf</a>)</p>
+<figure class="align-default">
+<img alt="_images/data-3.png" class="plot-directive" src="_images/data-3.png" />
+</figure>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.get_periodic_partners">
+<span class="sig-name descname"><span class="pre">get_periodic_partners</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span></span></span><a class="headerlink" href="#data.Lattice.get_periodic_partners" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate periodic partners.</p>
+<p>Check is done whether lattice is in a valid window condition.
+:returns:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>list of 2-element sets of node numbers</dt><dd><p>of periodic partners</p>
+</dd>
+</dl>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>periodic_partners</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.get_transform_matrix">
+<span class="sig-name descname"><span class="pre">get_transform_matrix</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">float64</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.get_transform_matrix" title="Permalink to this definition"></a></dt>
+<dd><p>Assemble transformation matrix from crystal data.</p>
+<p>Formula is in the Appendix to the PNAS paper:
+Lumpe, T. S. and Stankovic, T. (2020)
+<a class="reference external" href="https://www.pnas.org/doi/10.1073/pnas.2003504118">https://www.pnas.org/doi/10.1073/pnas.2003504118</a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.merge_colinear_edges">
+<span class="sig-name descname"><span class="pre">merge_colinear_edges</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.merge_colinear_edges" title="Permalink to this definition"></a></dt>
+<dd><p>Merge colinear edges based on nodal connectivity 2
+and similar angle between two unit vectors along the edges.</p>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 3, &#39;num_edges&#39;: 2}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span><span class="o">.</span><span class="n">merge_colinear_edges</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 2, &#39;num_edges&#39;: 1}</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//data-4.py">Source code</a>, <a class="reference external" href=".//data-4.png">png</a>, <a class="reference external" href=".//data-4.hires.png">hires.png</a>, <a class="reference external" href=".//data-4.pdf">pdf</a>)</p>
+<figure class="align-default">
+<img alt="_images/data-4.png" class="plot-directive" src="_images/data-4.png" />
+</figure>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.merge_nonunique_nodes">
+<span class="sig-name descname"><span class="pre">merge_nonunique_nodes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decimals</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.merge_nonunique_nodes" title="Permalink to this definition"></a></dt>
+<dd><p>Merge nodes with identical coordinates
+and collapse self-incident edges</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.obtain_best_shift_vector">
+<span class="sig-name descname"><span class="pre">obtain_best_shift_vector</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.obtain_best_shift_vector" title="Permalink to this definition"></a></dt>
+<dd><p>Get a shift vector for windowed representation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>WindowingException</strong> – _description_</p></li>
+<li><p><strong>WindowingException</strong> – _description_</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>_description_</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>npt.NDArray (3,)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.refine_mesh">
+<span class="sig-name descname"><span class="pre">refine_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_div</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.refine_mesh" title="Permalink to this definition"></a></dt>
+<dd><p>Split edges into at least ‘min_div’ segments per edge
+and with each segment having length at least ‘min_length’</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.remove_duplicate_edges_adjacency">
+<span class="sig-name descname"><span class="pre">remove_duplicate_edges_adjacency</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.remove_duplicate_edges_adjacency" title="Permalink to this definition"></a></dt>
+<dd><p>Remove duplicate edges.</p>
+<p>Operates on the adjacency representation.
+Sort edges first</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.remove_duplicate_edges_nodes">
+<span class="sig-name descname"><span class="pre">remove_duplicate_edges_nodes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.remove_duplicate_edges_nodes" title="Permalink to this definition"></a></dt>
+<dd><p>Remove edges which are on top of each other.</p>
+<p>Operates on edge coordinate representation.
+To deal with machine precision, round all nodal coordinates
+to a specific number of decimal places.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.remove_self_incident_edges">
+<span class="sig-name descname"><span class="pre">remove_self_incident_edges</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.remove_self_incident_edges" title="Permalink to this definition"></a></dt>
+<dd><p>Remove edges which have identical endpoints</p>
+<p>Operates on the adjacency representation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.set_edge_radii">
+<span class="sig-name descname"><span class="pre">set_edge_radii</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rel_dens</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">repr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'transformed'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Lattice.set_edge_radii" title="Permalink to this definition"></a></dt>
+<dd><p>Set edge radii according to relative density.</p>
+<dl class="simple">
+<dt>Params:</dt><dd><ul class="simple">
+<li><p>rel_dens: relative density</p></li>
+<li><p>repr: ‘reduced’ or ‘transformed’</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.split_edges_by_points">
+<span class="sig-name descname"><span class="pre">split_edges_by_points</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">edge_split_coords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Set</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.split_edges_by_points" title="Permalink to this definition"></a></dt>
+<dd><p>Split edges at specific coordinate points.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>edge_split_coords</strong> (<em>List</em><em>[</em><em>Tuple</em><em>[</em><em>Set</em><em>, </em><em>npt.NDArray</em><em>]</em><em>]</em>) – list of tuples
+(edge, point_array) in format as returned by functions
+<a class="reference internal" href="#data.Lattice.find_nodes_on_edges" title="data.Lattice.find_nodes_on_edges"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_nodes_on_edges()</span></code></a> and <a class="reference internal" href="#data.Lattice.find_edge_intersections" title="data.Lattice.find_edge_intersections"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_edge_intersections()</span></code></a>.
+Each edge will be split into multiple edges by the points
+in point_array.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 3, &#39;num_edges&#39;: 1}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">nodes_on_edges</span> <span class="o">=</span> <span class="n">lat</span><span class="o">.</span><span class="n">find_nodes_on_edges</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span><span class="o">.</span><span class="n">split_edges_by_points</span><span class="p">(</span><span class="n">nodes_on_edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 3, &#39;num_edges&#39;: 2}</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//data-5.py">Source code</a>, <a class="reference external" href=".//data-5.png">png</a>, <a class="reference external" href=".//data-5.hires.png">hires.png</a>, <a class="reference external" href=".//data-5.pdf">pdf</a>)</p>
+<figure class="align-default">
+<img alt="_images/data-5.png" class="plot-directive" src="_images/data-5.png" />
+</figure>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 4, &#39;num_edges&#39;: 2}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edge_intersections</span> <span class="o">=</span> <span class="n">lat</span><span class="o">.</span><span class="n">find_edge_intersections</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span><span class="o">.</span><span class="n">split_edges_by_points</span><span class="p">(</span><span class="n">edge_intersections</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 4, &#39;num_edges&#39;: 4}</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//data-6.py">Source code</a>, <a class="reference external" href=".//data-6.png">png</a>, <a class="reference external" href=".//data-6.hires.png">hires.png</a>, <a class="reference external" href=".//data-6.pdf">pdf</a>)</p>
+<figure class="align-default">
+<img alt="_images/data-6.png" class="plot-directive" src="_images/data-6.png" />
+</figure>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#data.Lattice.find_nodes_on_edges" title="data.Lattice.find_nodes_on_edges"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_nodes_on_edges()</span></code></a>
+<a class="reference internal" href="#data.Lattice.find_edge_intersections" title="data.Lattice.find_edge_intersections"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_edge_intersections()</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#data.Lattice.to_dict" title="Permalink to this definition"></a></dt>
+<dd><p>Obtain a dictionary with the reduced representation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.update_representations">
+<span class="sig-name descname"><span class="pre">update_representations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">basis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'reduced_adjacency'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.update_representations" title="Permalink to this definition"></a></dt>
+<dd><p>Propagate one format of representation
+to all other available formats.</p>
+<p>Implemented options for basis:
+- ‘reduced_adjacency’
+- ‘reduced_edge_coords’</p>
+<p>Propagates to nodal coordinates, edge adjacency,
+edge coordinates, number of nodes/edges.
+# TODO: update all relevant attributes</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="the-catalogue-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">Catalogue</span></code> class<a class="headerlink" href="#the-catalogue-class" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="data.Catalogue">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">data.</span></span><span class="sig-name descname"><span class="pre">Catalogue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indexing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Catalogue" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Unit cell catalogue object.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<dl>
+<dt>Two class methods are available to initialise the object:</dt><dd><ul>
+<li><dl>
+<dt><a class="reference internal" href="#data.Catalogue.from_file" title="data.Catalogue.from_file"><code class="xref py py-func docutils literal notranslate"><span class="pre">from_file()</span></code></a></dt><dd><p>Used to read the catalogue from a file</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">cat</span> <span class="o">=</span> <span class="n">Catalogue</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;Unit_Cell_Catalog.txt&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt><a class="reference internal" href="#data.Catalogue.from_dict" title="data.Catalogue.from_dict"><code class="xref py py-func docutils literal notranslate"><span class="pre">from_dict()</span></code></a></dt><dd><p>Used to create the catalogue from unit cells either from scratch
+or when unit cells from a file are modified</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">3</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">],[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 4, &#39;num_edges&#39;: 6}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cat_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;pyramid&#39;</span><span class="p">:</span><span class="n">lat</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cat</span> <span class="o">=</span> <span class="n">Catalogue</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">cat_dict</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="simple">
+<dt>See Also:</dt><dd><p><a class="reference internal" href="#data.Lattice.to_dict" title="data.Lattice.to_dict"><code class="xref py py-func docutils literal notranslate"><span class="pre">Lattice.to_dict()</span></code></a></p>
+</dd>
+</dl>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Catalogue.from_dict">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lattice_dicts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Catalogue" title="data.catalogue.Catalogue"><span class="pre">Catalogue</span></a></span></span><a class="headerlink" href="#data.Catalogue.from_dict" title="Permalink to this definition"></a></dt>
+<dd><p>Generate unit cell catalogue from dictionary representation</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>lattice_dicts</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Dict</em><em>]</em>) – dictionary of lattice dictionaries</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Catalogue</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<dl class="simple">
+<dt>Lattice dictionaries must contain the following keys:</dt><dd><ul class="simple">
+<li><p><cite>edge_adjacency</cite></p></li>
+<li><p><cite>nodal_positions</cite> or <cite>reduced_node_coordinates</cite></p></li>
+</ul>
+</dd>
+<dt>They can contain also:</dt><dd><ul class="simple">
+<li><p><cite>lattice_constants</cite></p></li>
+<li><p><cite>compliance_tensors</cite></p></li>
+</ul>
+</dd>
+</dl>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Catalogue.from_file">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indexing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Catalogue" title="data.catalogue.Catalogue"><span class="pre">Catalogue</span></a></span></span><a class="headerlink" href="#data.Catalogue.from_file" title="Permalink to this definition"></a></dt>
+<dd><p>Read catalogue from a file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fn</strong> (<em>str</em>) – path to input file</p></li>
+<li><p><strong>indexing</strong> (<em>int</em>) – 0 or 1 as the basis of edge indexing</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Catalogue</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Catalogue.get_unit_cell">
+<span class="sig-name descname"><span class="pre">get_unit_cell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#data.Catalogue.get_unit_cell" title="Permalink to this definition"></a></dt>
+<dd><p>Return a dictionary which represents unit cell.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – Name of the unit cell from the catalogue that
+will be returned</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Dictionary describing the unit cell</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<dl class="simple">
+<dt>Returned dictionary contains all available keys from the following:</dt><dd><ul class="simple">
+<li><p><cite>name</cite></p></li>
+<li><p><cite>lattice constants</cite>: [a,b,c,alpha,beta,gamma]</p></li>
+<li><p><cite>average connectivity</cite></p></li>
+<li><p><cite>compliance_tensors</cite></p></li>
+<li><p><cite>nodal_positions</cite>: nested list of shape (num_nodes, 3)</p></li>
+<li><p><cite>edge_adjacency</cite>: nested list of shape (num_edges, 2) (0-indexed)</p></li>
+</ul>
+</dd>
+</dl>
+<p>The dictionary can be unpacked in the creation of a <cite>Lattice</cite> object</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">data</span> <span class="kn">import</span> <span class="n">Lattice</span><span class="p">,</span> <span class="n">Catalogue</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cat</span> <span class="o">=</span> <span class="n">Catalogue</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;Unit_Cell_Catalog.txt&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="o">**</span><span class="n">cat</span><span class="o">.</span><span class="n">get_unit_cell</span><span class="p">(</span><span class="n">cat</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;name&#39;: &#39;cub_Z06.0_E1&#39;, &#39;num_nodes&#39;: 8, &#39;num_edges&#39;: 12}</span>
+</pre></div>
+</div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#data.Lattice.__init__" title="data.Lattice.__init__"><code class="xref py py-func docutils literal notranslate"><span class="pre">data.Lattice.__init__()</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Catalogue.to_file">
+<span class="sig-name descname"><span class="pre">to_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Catalogue.to_file" title="Permalink to this definition"></a></dt>
+<dd><p>Export unit cell catalogue to file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>fn</strong> (<em>str</em>) – output file path</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<section id="submodules">
+<h3>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading"></a></h3>
+</section>
+<section id="module-data.elasticity_func">
+<span id="data-elasticity-func-module"></span><h3>data.elasticity_func module<a class="headerlink" href="#module-data.elasticity_func" title="Permalink to this heading"></a></h3>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to gnn-paper’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Ivan Grega.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

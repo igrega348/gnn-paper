@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from matplotlib.collections import LineCollection
 import networkx as nx
 import numpy.typing as npt
 from scipy.interpolate import griddata
@@ -54,24 +55,41 @@ def surface_plot(true, pred, dataset, nplot: int, fn: str):
 
 
 def plot_unit_cell_2d(
-    lat, transformed=False, node_numbers=True,
+    lat, repr='reduced', node_numbers=True,
     ax=None
     ) -> plt.Axes:
-    if transformed:
+    if repr=='transformed':
         if not hasattr(lat, 'transformed_node_coordinates'):
             lat.calculate_transformed_coordinates()
-            nodes = lat.transformed_node_coordinates
-    else:
+        nodes = lat.transformed_node_coordinates
+        edges = lat.edge_adjacency
+    elif repr=='reduced':
         nodes = lat.reduced_node_coordinates
-    edges = lat.edge_adjacency
+        edges = lat.edge_adjacency
+    elif repr=='fundamental':
+        if not hasattr(lat, 'fundamental_edge_adjacency'):
+            lat.calculate_fundamental_representation()
+        edge_coords = lat._node_adj_to_ec(
+            lat.reduced_node_coordinates, lat.fundamental_edge_adjacency
+        )
+        edge_coords += lat.fundamental_tesselation_vecs
+        nodes, edges = lat._ec_to_node_adj(edge_coords)
+    else:
+        raise NotImplementedError
     
     if not isinstance(ax, plt.Axes):
         fig = plt.figure(figsize=(5,5),facecolor='w')
         ax = plt.axes()
     ax.scatter(nodes[:,0], nodes[:,1])
-    for e in edges:
+    segments = []
+    colors = [] 
+    for i_e, e in enumerate(edges):
         line = nodes[e]
-        ax.plot(line[:,0], line[:,1])
+        segments.append([(line[0,0], line[0,1]), 
+                        (line[1,0], line[1,1])])
+        colors.append(f'C{i_e%5}')
+    lc = LineCollection(segments, colors=colors, linewidths=2)
+    ax.add_collection(lc)
     if node_numbers:
         for ni, n in enumerate(nodes):
             ax.text(n[0],n[1],f"{ni}")
@@ -229,10 +247,14 @@ def plotly_unit_cell_3d(
         showlegend=False,   
         **subplot_args
     )
-    if isinstance(subplot, dict):
-        fig.layout.annotations[subplot['index']].update(text=lat.name)
+    if hasattr(lat, 'name'):
+        title = lat.name
     else:
-        fig.update_layout(title=lat.name)
+        title = ''
+    if isinstance(subplot, dict):
+        fig.layout.annotations[subplot['index']].update(text=title)
+    else:
+        fig.update_layout(title=title)
     return fig
 
 # %%

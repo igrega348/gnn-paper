@@ -37,7 +37,6 @@ class Lattice:
     scaling_exponents: dict
     # other properties
     lattice_constants: npt.NDArray[np.float_]
-    UC_VOLUME: float
     rel_dens: float
     edge_radii: npt.NDArray[np.float_]    
 
@@ -46,14 +45,45 @@ class Lattice:
             nodal_positions=None, edge_adjacency=None, 
             edge_coordinates=None, **kwargs
             ) -> None:
-        """
-        Construct lattice unit cell
+        """Construct lattice unit cell.
 
         Takes in keyword-only arguments. 
-        Intended for three ways of initialisation:
-        - by unpacking the catalogue dictionary
-        - by manually specifying node coordinates and edge adjacency
-        - by manually specifying edge coordinates
+
+        Examples:
+        
+            Three ways of initialisation.
+                - by unpacking the catalogue dictionary
+                
+                >>> from data import Lattice, Catalogue
+                >>> cat = Catalogue.from_file('Unit_Cell_Catalog.txt', 1)
+                >>> lat = Lattice(**cat.get_unit_cell(cat.names[0]))
+                >>> lat
+                {'name': 'cub_Z06.0_E1', 'num_nodes': 8, 'num_edges': 12}
+
+                - by specifying node coordinates and edge adjacency
+
+                >>> import numpy as np
+                >>> nodes = np.array([[0,0,0],[1,0,0],[0.5,1,0],[0.5,0.5,1]])
+                >>> edges = np.array([[0,1],[1,2],[0,2],[0,3],[1,3],[2,3]])
+                >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges, 
+                >>>               name='pyramid')
+                >>> lat
+                {'name': 'pyramid', 'num_nodes': 4, 'num_edges': 6}
+
+                - by specifying edge coordinates
+
+                >>> edge_coords = np.array([
+                >>>    [0,0,0,1,0,0],
+                >>>    [1,0,0,0.5,1,0],
+                >>>    [0.5,1,0,0,0,0],
+                >>>    [0,0,0,0.5,0.5,1],
+                >>>    [1,0,0,0.5,0.5,1],
+                >>>    [0.5,1,0,0.5,0.5,1]
+                >>> ])
+                >>> lat = Lattice(edge_coordinates=edge_coords, name='pyramid')
+                >>> lat
+                {'name': 'pyramid', 'num_edges': 6}
+
         """
         if isinstance(name, str):
             self.name = name
@@ -69,10 +99,8 @@ class Lattice:
         if isinstance(edge_coordinates, Sequence):
             edge_coordinates = np.array(edge_coordinates)
         
-        if (isinstance(lattice_constants, Sequence)
-            or isinstance(lattice_constants, np.ndarray)):
+        if isinstance(lattice_constants, Iterable):
             self.lattice_constants = np.array(lattice_constants, dtype=float)
-            _ = self.calculate_UC_volume()
         
         if 'compliance_tensors' in kwargs:
             compliance_tensors_flat = kwargs['compliance_tensors']
@@ -134,9 +162,20 @@ class Lattice:
         return repr_dict.__repr__()
 
 
-    def calculate_UC_volume(self) -> None:
-        """
-        Calculate unit cell volume from internally-stored crystal data
+    def calculate_UC_volume(self) -> float:
+        """Calculate unit cell volume from internally-stored crystal data
+
+        Given internally-stored crystal data 
+        :math:`a,b,c,{\\alpha},{\\beta},{\\gamma}`, 
+        calculate unit cell volume as
+
+        .. math::
+
+            abc \sqrt{1 - \cos({\\alpha})^2 - \cos(\\beta)^2 - \cos(\\gamma)^2 + 2\cos(\\alpha)\cos(\\beta)\cos(\\gamma)}
+
+        For more details see the supporting information of PNAS paper at
+        https://www.pnas.org/doi/10.1073/pnas.2003504118
+
         """
         crys_data = self.lattice_constants
         
@@ -152,8 +191,8 @@ class Lattice:
                 - (np.cos(beta))**2.0 
                 - (np.cos(gamma))**2.0)
         term = term + 2.0 * np.cos(alpha) * np.cos(beta) * np.cos(gamma)
-        omega = a*b*c* np.sqrt( term )  
-        self.UC_VOLUME = omega
+        uc_volume = a*b*c* np.sqrt( term )  
+        return uc_volume
 
     def get_transform_matrix(self) -> npt.NDArray[np.float_]:
         """
@@ -171,7 +210,7 @@ class Lattice:
         beta = crys_data[4] * np.pi/180
         gamma = crys_data[5] * np.pi/180
         
-        omega = self.UC_VOLUME
+        omega = self.calculate_UC_volume()
         
         transform_mat = np.zeros((3,3))
         transform_mat[0][0] = a
@@ -255,7 +294,7 @@ class Lattice:
             raise NotImplementedError
         sum_edge_lengths = edge_lengths.sum()
 
-        uc_vol = self.UC_VOLUME
+        uc_vol = self.calculate_UC_volume()
 
         edge_radius = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
         edge_radii = edge_radius*np.ones_like(edge_lengths)
@@ -372,9 +411,9 @@ class Lattice:
         to a specific number of decimal places.
         """
         NDECIMALS = 5
-        if not hasattr(self, 'reduced_edge_coordinates'):
-            self.node_adjacency_to_edge_coordinates()
-        edge_coords = self.reduced_edge_coordinates
+        nodes = self.reduced_node_coordinates
+        edges = self.edge_adjacency
+        edge_coords = self._node_adj_to_ec(nodes, edges)
         edge_coords = np.around(edge_coords, decimals=NDECIMALS)
         nodes, edges = self._ec_to_node_adj(edge_coords)
         # sort each row and remove duplicates
@@ -442,66 +481,6 @@ class Lattice:
         if hasattr(self, 'fundamental_edge_adjacency'):
             self.calculate_fundamental_representation()
 
-    def node_adjacency_to_edge_coordinates(
-            self, which : str = 'reduced'
-            ) -> None:
-        """
-        Calcualate the edge coordinate representation of the lattice
-        and propagate the information to all available representations
-
-        which: representation to use as basis
-        - 'reduced' 
-        - 'transformed': NotImplemented
-        """
-        edges = self.edge_adjacency
-
-        if which=='reduced':    
-            self.reduced_edge_coordinates = self._node_adj_to_ec(
-                self.reduced_node_coordinates, edges
-            )
-            if hasattr(self, 'transformed_node_coordinates'):
-                # make sure the transformation is up-to-date
-                self.calculate_transformed_coordinates()
-                self.transformed_edge_coordinates = self._node_adj_to_ec(
-                    self.transformed_node_coordinates, edges
-                )
-            self.num_edges = edges.shape[0]
-            self.num_nodes = self.reduced_node_coordinates.shape[0]
-        elif which=='transformed':
-            raise NotImplementedError
-        else:
-            raise NotImplementedError
-
-    def edge_coordinates_to_node_adjacency(
-            self, which : str = 'reduced'
-            ) -> None:
-        """
-        Calcualate the node coordinate - edge adjacency representation
-        and propagate the information to all available representations.
-        
-        which: representation to use as basis
-        - 'reduced' 
-        - 'transformed': NotImplemented
-        """
-        if which=='reduced':    
-            edge_coords = self.reduced_edge_coordinates
-            nodes, edges = self._ec_to_node_adj(edge_coords)
-            self.reduced_node_coordinates = nodes
-            self.edge_adjacency = edges
-            self.num_nodes = self.reduced_node_coordinates.shape[0]
-            self.num_edges = self.edge_adjacency.shape[0]
-            
-            if hasattr(self, 'transformed_node_coordinates'):
-                self.calculate_transformed_coordinates()
-            if hasattr(self, 'transformed_edge_coordinates'):
-                self.transformed_edge_coordinates = self._node_adj_to_ec(
-                    self.transformed_node_coordinates, self.edge_adjacency
-                )
-        elif which=='transformed':
-            raise NotImplementedError
-        else:
-            raise NotImplementedError
-
     @staticmethod
     def _node_adj_to_ec(nodes, edges) -> npt.NDArray[np.float_]:
         ec = np.zeros((edges.shape[0], 6))
@@ -558,11 +537,9 @@ class Lattice:
             lines = edges[np.any(edges==n, axis=1),:]
             assert len(lines)==2
             unit_vecs = []
-            other_nodes = []
             p0 = n
             for line in lines:
                 p1 = (set(line)-{p0}).pop()
-                other_nodes.append(p1)
                 v = nodes[p1, :] - nodes[p0, :]
                 unit_vecs.append(v/np.linalg.norm(v, keepdims=True))
             dev = np.abs(np.dot(unit_vecs[0], unit_vecs[1]) + 1)
@@ -574,8 +551,34 @@ class Lattice:
         """
         Find nodes which lie on edges and are not endpoints.
 
-        Operates on reduced nodal coordinates - adjacency representation
         Returns a list of tuples (edge: set, nodes: coordinates of points that need to split edges)
+
+        Example:
+
+            >>> nodes = [[0,0,0],[1,0,0],[0.5,0,0]]
+            >>> edges = [[0,1]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat
+            {'num_nodes': 3, 'num_edges': 1}
+            >>> nodes_on_edges = lat.find_nodes_on_edges()
+            >>> print(nodes_on_edges)
+            [({0, 1}, array([[0.5, 0. , 0. ]]))]
+
+            .. plot::
+
+                from utils import plotting
+                from data import Lattice
+                import matplotlib.pyplot as plt
+                nodes = [[0,0,0],[1,0,0],[0.5,0,0]]
+                edges = [[0,1]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, ax = plt.subplots(figsize=(4,2))
+                ax = plotting.plot_unit_cell_2d(lat, ax=ax)
+                ax.set_yticks([]); ax.set_ylabel('')
+                plt.tight_layout()
+                ax
+
+
         """
         TOL_RADIAL = 5e-3
         nodes = self.reduced_node_coordinates
@@ -614,6 +617,32 @@ class Lattice:
         Returns:
             edge_intersection_points: dictionary with edge indices
                 as keys and coordinates of intersection points as values
+            
+        Example:
+
+            >>> nodes = [[0,0,0],[1,0,0],[1,1,0],[0,1,0]]
+            >>> edges = [[0,2],[1,3]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat
+            {'num_nodes': 4, 'num_edges': 2}
+            >>> edge_intersections = lat.find_edge_intersections()
+            >>> print(edge_intersections)
+            [({0, 2}, array([[0.5, 0.5, 0. ]])), ({1, 3}, array([[0.5, 0.5, 0. ]]))]
+
+            .. plot::
+
+                from utils import plotting
+                from data import Lattice
+                import matplotlib.pyplot as plt
+                nodes = [[0,0,0],[1,0,0],[1,1,0],[0,1,0]]
+                edges = [[0,2],[1,3]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, ax = plt.subplots(figsize=(4,2))
+                ax = plotting.plot_unit_cell_2d(lat, ax=ax)
+                plt.tight_layout()
+                ax
+
+
         """
         TOL = 1e-4
         TOL_ANGLE = 2e-3
@@ -679,7 +708,76 @@ class Lattice:
         """
         Split edges at specific coordinate points. 
         
-        Creates edge_coords representation
+        Args:
+            edge_split_coords (List[Tuple[Set, npt.NDArray]]): list of tuples 
+                (edge, point_array) in format as returned by functions
+                :func:`find_nodes_on_edges` and :func:`find_edge_intersections`.
+                Each edge will be split into multiple edges by the points 
+                in point_array.
+
+        Examples:
+
+            >>> nodes = [[0,0,0],[1,0,0],[0.5,0,0]]
+            >>> edges = [[0,1]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat
+            {'num_nodes': 3, 'num_edges': 1}
+            >>> nodes_on_edges = lat.find_nodes_on_edges()
+            >>> lat.split_edges_by_points(nodes_on_edges)
+            >>> lat
+            {'num_nodes': 3, 'num_edges': 2}
+
+            .. plot::
+
+                from utils import plotting
+                from data import Lattice
+                import matplotlib.pyplot as plt
+                nodes = [[0,0,0],[1,0,0],[0.5,0,0]]
+                edges = [[0,1]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, axes = plt.subplots(ncols=2, figsize=(6,2))
+                plotting.plot_unit_cell_2d(lat, ax=axes[0])
+                nodes_on_edges = lat.find_nodes_on_edges()
+                lat.split_edges_by_points(nodes_on_edges)
+                plotting.plot_unit_cell_2d(lat, ax=axes[1])
+                for ax in axes: ax.set_yticks([]); ax.set_ylabel('')
+                axes[0].set_title('Before splitting')
+                axes[1].set_title('After splitting')
+                fig.tight_layout()
+                axes
+
+            >>> nodes = [[0,0,0],[1,0,0],[1,1,0],[0,1,0]]
+            >>> edges = [[0,2],[1,3]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat
+            {'num_nodes': 4, 'num_edges': 2}
+            >>> edge_intersections = lat.find_edge_intersections()
+            >>> lat.split_edges_by_points(edge_intersections)
+            >>> lat
+            {'num_nodes': 4, 'num_edges': 4}
+
+            .. plot::
+
+                from utils import plotting
+                from data import Lattice
+                import matplotlib.pyplot as plt
+                nodes = [[0,0,0],[1,0,0],[1,1,0],[0,1,0]]
+                edges = [[0,2],[1,3]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, axes = plt.subplots(ncols=2, figsize=(6,3))
+                plotting.plot_unit_cell_2d(lat, ax=axes[0])
+                edge_intersections = lat.find_edge_intersections()
+                lat.split_edges_by_points(edge_intersections)
+                plotting.plot_unit_cell_2d(lat, ax=axes[1])
+                axes[0].set_title('Before splitting')
+                axes[1].set_title('After splitting')
+                fig.tight_layout()
+                axes
+
+        See Also:
+            :func:`find_nodes_on_edges`
+            :func:`find_edge_intersections`
+
         """
         nodes = self.reduced_node_coordinates
         edges = np.sort(self.edge_adjacency, axis=1)
@@ -731,16 +829,19 @@ class Lattice:
         Returns: 
             edge_lengths: array of shape (num_edges,) with edge lengths
                 in the selected representation
+
+        TODO: is fundamental transformed or not?
         """
         assert self.edge_adjacency.shape==(self.num_edges, 2)
         if repr=='reduced':
-            self.node_adjacency_to_edge_coordinates('reduced')
-            edge_coords = self.reduced_edge_coordinates
+            edge_coords = self._node_adj_to_ec(
+                self.reduced_node_coordinates, self.edge_adjacency
+            )
         elif repr=='transformed':
-            if not hasattr(self, 'transformed_node_coordinates'):
-                self.calculate_transformed_coordinates()
-            self.node_adjacency_to_edge_coordinates('reduced')
-            edge_coords = self.transformed_edge_coordinates
+            self.calculate_transformed_coordinates()
+            edge_coords = self._node_adj_to_ec(
+                self.transformed_node_coordinates, self.edge_adjacency
+            )
         elif repr=='fundamental':
             if not hasattr(self, 'fundamental_edge_adjacency'):
                 self.calculate_fundamental_representation()
@@ -803,15 +904,15 @@ class Lattice:
 
         return distances, np.column_stack(indices)
 
-    def calculate_node_types(self):
+    def calculate_node_types(self) -> Dict[str, Set]:
         """
         Calculate types of nodes from reduced representation
 
         Returns a dictionary with sets of 
-        - corner nodes
-        - edge nodes
-        - face nodes
-        - inner nodes
+            - corner nodes (3 d.o.f. lie on UC boundary)
+            - edge nodes (2 d.o.f. lie on UC boundary)
+            - face nodes (1 d.o.f. lies on UC boundary)
+            - inner nodes (no d.o.f lie on UC boundary)
         """
         self.verify_num_nodes_edges()
         nodes = self.reduced_node_coordinates
@@ -833,8 +934,10 @@ class Lattice:
         return node_types
 
     def calculate_nodal_connectivity(self) -> npt.NDArray[np.int_]:
-        """
-        Operate on reduced edge adjacency representation
+        """Calculate how many times nodes appear in the edge adjacency map.
+
+        Returns:
+            array[int] (num_nodes,): connectivity of each node
         """
         nodes = self.reduced_node_coordinates
         edges = self.edge_adjacency
@@ -851,13 +954,17 @@ class Lattice:
         Operate on reduced edge adjacency representation.
 
         Check that 
-        - reduced node coordinates lie between 0 and 1
-        - the only boundary nodes are face nodes
-        - the connectivity of these nodes is 1
+            - minimum reduced node coordinate is 0 and maximum is UC_L (1)
+            - the only boundary nodes are face nodes
+            - the connectivity of these nodes is 1
+
+        See Also:
+            :func:`calculate_node_types`,
+            :func:`calculate_nodal_connectivity`
         """
         nodes = self.reduced_node_coordinates
         if (np.abs(nodes.min())>self.TOL_DIST
-            or np.abs(nodes.max()-1)>self.TOL_DIST):
+            or np.abs(nodes.max()-self.UC_L)>self.TOL_DIST):
             return False
         node_types = self.calculate_node_types()
         if len(node_types['corner_nodes'])>0: 
@@ -868,7 +975,6 @@ class Lattice:
         connectivity = self.calculate_nodal_connectivity()
         if not np.all(connectivity[face_node_numbers]==1):
             return False
-        # TODO any other conditions - e.g. edge length
         return True
 
     def get_periodic_partners(self) -> list:
@@ -940,8 +1046,6 @@ class Lattice:
             pp_dict[pp_l[0]] = pp_l[1]
             pp_dict[pp_l[1]] = pp_l[0]
         return pp_dict
-
-    
 
 
     def calculate_fundamental_representation(self) -> None:
@@ -1015,16 +1119,46 @@ class Lattice:
         self.fundamental_tesselation_vecs = t_vecs
         self.num_fundamental_edges = self.fundamental_edge_adjacency.shape[0]
 
-    def crop_lattice(self) -> None:
+    def crop_unit_cell(self) -> None:
+        """Crop lattice to fit within unit cell window.
+
+        Examples:
+
+            >>> nodes = [[0,0,0],[1.5,0.5,0]]
+            >>> edges = [[0,1]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat.crop_unit_cell()
+
+            .. plot::
+
+                from utils import plotting
+                from data import Lattice
+                import matplotlib.pyplot as plt
+                from matplotlib.patches import Rectangle
+                nodes = [[0,0,0],[1.5,0.5,0]]
+                edges = [[0,1]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, axes = plt.subplots(ncols=2, figsize=(6,2), sharey=True)
+                plotting.plot_unit_cell_2d(lat, ax=axes[0])
+                lat.crop_unit_cell()
+                plotting.plot_unit_cell_2d(lat, ax=axes[1])
+                axes[0].set_title('Before cropping')
+                axes[1].set_title('After cropping')
+                for ax in axes: 
+                    ax.axis('equal'); ax.set_xlim(-0.2,2); ax.set_ylim(-0.2,1.2)
+                for ax in axes: 
+                    rect = Rectangle((0,0), width=1, height=1, ec='k', fc='none')
+                    ax.add_patch(rect)
+                fig.tight_layout()
+                axes
+
+        See Also:
+            :func:`create_windowed`
         """
-        Crop lattice to fit within unit cell
-    
-        Operates on reduced edge coordinates
-        """
-        UC_L = 1.0
+        UC_L = self.UC_L
 
         if not hasattr(self, 'reduced_edge_coordinates'):
-            self.node_adjacency_to_edge_coordinates('reduced')
+            self.update_representations('reduced_adjacency')
         edge_coords = self.reduced_edge_coordinates
 
         for dim in range(3):
@@ -1065,111 +1199,183 @@ class Lattice:
         self.update_representations(basis='reduced_edge_coords')
         self.remove_duplicate_edges_nodes()
 
+    def merge_colinear_edges(self) -> None:
+        """Merge colinear edges based on nodal connectivity 2 
+        and similar angle between two unit vectors along the edges.
+
+        Example:
+                
+            >>> nodes = [[0,0,0],[1,0,0],[0.5,0,0]]
+            >>> edges = [[0,2],[1,2]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat
+            {'num_nodes': 3, 'num_edges': 2}
+            >>> lat.merge_colinear_edges()
+            >>> lat
+            {'num_nodes': 2, 'num_edges': 1}
+                
+
+            .. plot::
+                
+                from utils import plotting
+                from data import Lattice
+                import matplotlib.pyplot as plt
+                nodes = [[0,0,0],[1,0,0],[0.5,0,0]]
+                edges = [[0,2],[1,2]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, axes = plt.subplots(ncols=2, figsize=(6,2))
+                plotting.plot_unit_cell_2d(lat, ax=axes[0])
+                lat.merge_colinear_edges()
+                plotting.plot_unit_cell_2d(lat, ax=axes[1])
+                for ax in axes: ax.set_yticks([]); ax.set_ylabel('')
+                axes[0].set_title('Before merging')
+                axes[1].set_title('After merging')
+                fig.tight_layout()
+                axes
+
+        """
+        nodes = self.reduced_node_coordinates
+        edges = self.edge_adjacency
+        
+        node_connectivity, dev_colin = self._node_conn_edge_colin(nodes, edges)
+        num_conn_2 = np.flatnonzero(node_connectivity==2)
+        num_nodes_conn_2 = len(num_conn_2)
+        if num_nodes_conn_2>0:
+            min_dev_num = np.nanargmin(dev_colin)
+            min_dev = dev_colin[min_dev_num]
+        else:
+            min_dev = np.inf
+        nodes_deleted = 0
+        while (num_nodes_conn_2>0) and (min_dev<self.TOL_ANGLE):
+            # Choose edges connected to node n
+            n_edge_indices = np.any(edges==min_dev_num, axis=1)
+            assert n_edge_indices.sum()==2
+            lines = edges[n_edge_indices,:]
+            merged_edge = []
+            for line in lines:
+                p1 = (set(line)-{min_dev_num}).pop()
+                merged_edge.append(p1)
+            new_edges = []
+            new_edges.append(merged_edge)
+            new_edges.extend(edges[~n_edge_indices,:])
+            edges = np.row_stack(new_edges)
+            nodes_deleted += 1
+
+            node_connectivity, dev_colin = self._node_conn_edge_colin(
+                                            nodes, edges
+                                            )
+            num_conn_2 = np.flatnonzero(node_connectivity==2)
+            num_nodes_conn_2 = len(num_conn_2)
+            if (~np.isnan(dev_colin)).sum()>0:
+                min_dev_num = np.nanargmin(dev_colin)
+                min_dev = dev_colin[min_dev_num]
+            else:
+                min_dev = np.inf
+
+            assert nodes_deleted<1000  # Avoid hanging while loop
+        
+        # Delete disconnected nodes
+        self.reduced_edge_coordinates = self._node_adj_to_ec(
+            self.reduced_node_coordinates, edges
+        )
+        self.update_representations(basis='reduced_edge_coords')
+        
+    def check_periodic_partners(self) -> bool:
+        node_types = self.calculate_node_types()
+        face_nodes_nums = list(node_types['face_nodes'])
+        face_pts = self.reduced_node_coordinates[face_nodes_nums, :]
+        for view_dim in [0,1,2]:
+            dims = [0,1,2].remove(view_dim)
+            _, cnts = np.unique(face_pts[:, dims], axis=0, return_counts=True)
+            if not np.allclose(cnts, np.ones_like(cnts)):
+                return False
+        return True
+
+    def obtain_shift_vector(
+        self, max_num_attempts: int = 10, min_edge_length: float = 5e-3, 
+        return_attempts: bool = False
+    ) -> npt.NDArray:
+        """Get a shift vector for windowed representation.
+
+        Raises:
+            WindowingException: _description_
+            WindowingException: _description_
+
+        Returns:
+            npt.NDArray (3,): _description_
+        """
+        window_satisfied = self.check_window_conditions()
+        if window_satisfied:
+            shortest_edge = self.calculate_edge_lengths().min()
+            shift_vector = np.zeros(3)
+        niter = 0
+        while ((not window_satisfied or shortest_edge<min_edge_length)
+                and niter<max_num_attempts):
+            temp_lattice = Lattice(**self.to_dict())
+            shift_vector = np.random.rand(3)
+            temp_lattice.reduced_node_coordinates = (
+                temp_lattice.reduced_node_coordinates + shift_vector
+            )
+            temp_lattice.update_representations(basis='reduced_adjacency')
+            temp_lattice.crop_unit_cell()
+            temp_lattice.merge_colinear_edges()
+            nodes_on_edges = temp_lattice.find_nodes_on_edges()
+            if len(nodes_on_edges)>0:
+                temp_lattice.split_edges_by_points(nodes_on_edges)
+            edge_intersections = temp_lattice.find_nodes_on_edges()
+            if len(edge_intersections)>0:
+                temp_lattice.split_edges_by_points(edge_intersections)
+            window_satisfied = temp_lattice.check_window_conditions()
+            window_satisfied = window_satisfied and temp_lattice.check_periodic_partners()
+            # if window_satisfied:
+            #     _ = temp_lattice.get_periodic_partners()
+            shortest_edge = temp_lattice.calculate_edge_lengths().min()
+            
+            niter += 1
+
+        if (window_satisfied) and (shortest_edge>min_edge_length):
+            if return_attempts:
+                return shift_vector, niter
+            else:
+                return shift_vector
+        else:
+            raise WindowingException(f'Failed to obtain a window for lattice {self.name}')
+
+
+    def create_windowed(self) -> "Lattice":
+        """Create a windowed representation of a lattice
+
+        Operate on reduced node coordinates. 
+        Return a new lattice instance.
+        """
+        shift_vector = self.obtain_shift_vector()
+        newlat = Lattice(**self.to_dict())
+        newlat.reduced_node_coordinates += shift_vector
+        newlat.crop_unit_cell()
+        newlat.merge_colinear_edges()
+        nodes_on_edges = newlat.find_nodes_on_edges()
+        if len(nodes_on_edges)>0:
+            newlat.split_edges_by_points(nodes_on_edges)
+        edge_intersections = newlat.find_nodes_on_edges()
+        if len(edge_intersections)>0:
+            newlat.split_edges_by_points(edge_intersections)
+        assert newlat.check_window_conditions()
+        return newlat
+
 
     def to_dict(self) -> dict:
         """Obtain a dictionary with the reduced representation."""
         d = dict()
-        d['name'] = self.name
+        if hasattr(self, 'name'):
+            d['name'] = self.name
         if hasattr(self, 'lattice_constants'):
             d['lattice_constants'] = self.lattice_constants
         d['reduced_node_coordinates'] = self.reduced_node_coordinates
         d['edge_adjacency'] = self.edge_adjacency
+        if hasattr(self, 'compliance_tensors'):
+            d['compliance_tensors'] = self.compliance_tensors
         return d
 
-    def print_lattice_lines(self) -> list:
-        """
-        Obtain a text representation of lattice.
-        
-        Suitable for exporting to file using writelines.
-        """
-        lines = []
-
-        assert hasattr(self, 'name')
-        lines.append(f'Name: {self.name}')
-        lines.append('')
-        if hasattr(self, 'lattice_constants'):
-            assert len(self.lattice_constants)==6
-            lines.append(
-                'Normalized unit cell parameters (a,b,c,alpha,beta,gamma):'
-            )
-            line = ''
-            for i, x in enumerate(self.lattice_constants):
-                line = line + f'{x:.5f}'
-                if i!=5:
-                    line = line + ', '
-            lines.append(line)
-
-        if hasattr(self, 'compliance_tensors'):
-            lines.append('')
-            lines.append('Compliance tensors start (flattened upper triangular)')
-            for rel_dens in self.compliance_tensors:
-                lines.append(f'-> at relative density {rel_dens}:')
-                S = self.compliance_tensors[rel_dens]
-                assert S.shape==(6,6)
-                nums = S[np.triu_indices(6)].tolist()
-                line = ''
-                for s in nums:
-                    line = line + f'{s:.5g},'
-                lines.append(line)
-            lines.append('Compliance tensors end')
-
-        if hasattr(self, 'Youngs_moduli'):
-            lines.append('')
-            lines.append(
-                f"Young's moduli at relative density "\
-                f"{self.Youngs_moduli['rel_dens']}"
-            )
-            lines.append(
-                f'  max: {self.Youngs_moduli["E_max"]:.5g} '\
-                f'at x,y,z=('
-                f'{self.Youngs_moduli["max_dir"][0]:.5g},'
-                f'{self.Youngs_moduli["max_dir"][1]:.5g},'
-                f'{self.Youngs_moduli["max_dir"][2]:.5g}'
-                ')'
-            )
-            lines.append(
-                f'  min: {self.Youngs_moduli["E_min"]:.5g} '\
-                f'at x,y,z=('
-                f'{self.Youngs_moduli["min_dir"][0]:.5g},'
-                f'{self.Youngs_moduli["min_dir"][1]:.5g},'
-                f'{self.Youngs_moduli["min_dir"][2]:.5g}'
-                ')'
-            )
-
-        if hasattr(self, 'scaling_exponents'):
-            lines.append('')
-            lines.append(f"Scaling exponents")
-            lines.append(
-                f'  max: {self.scaling_exponents["n_max"]:.5f} '\
-                f'at x,y,z=('
-                f'{self.scaling_exponents["max_dir"][0]:.5g},'
-                f'{self.scaling_exponents["max_dir"][1]:.5g},'
-                f'{self.scaling_exponents["max_dir"][2]:.5g}'
-                ')'
-            )
-            lines.append(
-                f'  min: {self.scaling_exponents["n_min"]:.5f} '\
-                f'at x,y,z=('
-                f'{self.scaling_exponents["min_dir"][0]:.5g},'
-                f'{self.scaling_exponents["min_dir"][1]:.5g},'
-                f'{self.scaling_exponents["min_dir"][2]:.5g}'
-                ')'
-            )
-        
-        assert hasattr(self,'reduced_node_coordinates')
-        assert hasattr(self,'edge_adjacency')
-        
-        lines.append('')
-        lines.append('Nodal positions:')
-        for x in self.reduced_node_coordinates:
-            lines.append(f'{x[0]:.5f} {x[1]:.5f} {x[2]:.5f}')
-
-        lines.append('')
-        lines.append('Bar connectivities:')
-        for e in self.edge_adjacency:
-            lines.append(f'{int(e[0])} {int(e[1])}')
-        lines.append('')
-        return lines
 
 class WindowingException(Exception):
     pass

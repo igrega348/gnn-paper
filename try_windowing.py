@@ -1,0 +1,53 @@
+# %%
+from data import Lattice, Catalogue
+from data.lattice import WindowingException
+from tqdm import tqdm
+from multiprocessing import Pool
+from random import shuffle
+import pandas as pd
+import plotly.express as px
+from typing import Tuple
+# %%
+def try_window(data: dict) -> Tuple:
+    lat = Lattice(**data)
+    try:
+        _, num_attempts = lat.obtain_shift_vector(max_num_attempts=3, return_attempts=True)
+    except WindowingException:
+        num_attempts = float('inf')
+
+    return (lat.name, num_attempts)
+
+def create_window(lat_data: dict) -> dict:
+    lat = Lattice(**lat_data)
+    try:
+        newlat = lat.create_windowed()
+        return newlat.to_dict()
+    except WindowingException:
+        return {}
+
+def main():
+    cat = Catalogue.from_file('./filtered_cat.lat', 0)
+    lat_data = [data for data in cat[:]*10]
+    shuffle(lat_data)
+    with Pool(processes=5) as p:
+        attempts = list(tqdm(p.imap_unordered(try_window, lat_data), total=len(lat_data), smoothing=0.1))
+
+    discarded = [tup[0] for tup in attempts if tup[1]>3]
+
+    selected = list(set(cat.names) - set(discarded))
+    print(f'Keeping {len(selected)} lattices')
+    
+    # check
+    lat_data = [data for data in cat if data['name'] in selected]
+    with Pool(processes=5) as p:
+        windowed = list(tqdm(p.imap(create_window, lat_data), total=len(lat_data), smoothing=0.1))
+
+    selected = [data['name'] for data in windowed if hasattr(data, 'name')]
+    print(f'Keeping {len(selected)} lattices')
+    
+    data_dict = {data['name']:data for data in lat_data if data['name'] in selected}
+    cat = Catalogue.from_dict(data_dict)
+    cat.to_file('./filt_wind.lat')
+
+if __name__=='__main__':
+    main()
