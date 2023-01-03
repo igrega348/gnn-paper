@@ -61,8 +61,9 @@ class Catalogue:
         if isinstance(ind, int):
             return self.get_unit_cell(self.names[ind])
         elif isinstance(ind, slice):
-            start, stop, step = ind.indices(len(self))
-            return [self.get_unit_cell(self.names[i]) for i in range(start, stop, step)]
+            selected_names = self.names[ind]
+            selected_data = {name: self.lines[name] for name in selected_names}
+            return Catalogue(data=selected_data, indexing=self.INDEXING)
         else:
             raise NotImplementedError
 

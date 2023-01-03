@@ -19,10 +19,9 @@
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
         <script src="_static/thebelab-helper.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+        <script src="https://unpkg.com/@jupyter-widgets/html-manager@^0.20.0/dist/embed-amd.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -48,47 +47,8 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">data package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#the-lattice-class">The <code class="docutils literal notranslate"><span class="pre">Lattice</span></code> class</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#data.Lattice"><code class="docutils literal notranslate"><span class="pre">Lattice</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.__init__"><code class="docutils literal notranslate"><span class="pre">Lattice.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_UC_volume"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_UC_volume()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_edge_lengths"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_edge_lengths()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_fundamental_representation"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_fundamental_representation()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_nodal_connectivity"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_nodal_connectivity()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_node_distances"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_node_distances()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_node_types"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_node_types()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.calculate_transformed_coordinates"><code class="docutils literal notranslate"><span class="pre">Lattice.calculate_transformed_coordinates()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.check_window_conditions"><code class="docutils literal notranslate"><span class="pre">Lattice.check_window_conditions()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.collapse_nodes_onto_boundaries"><code class="docutils literal notranslate"><span class="pre">Lattice.collapse_nodes_onto_boundaries()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.create_windowed"><code class="docutils literal notranslate"><span class="pre">Lattice.create_windowed()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.crop_unit_cell"><code class="docutils literal notranslate"><span class="pre">Lattice.crop_unit_cell()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.find_edge_intersections"><code class="docutils literal notranslate"><span class="pre">Lattice.find_edge_intersections()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.find_nodes_on_edges"><code class="docutils literal notranslate"><span class="pre">Lattice.find_nodes_on_edges()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.get_periodic_partners"><code class="docutils literal notranslate"><span class="pre">Lattice.get_periodic_partners()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.get_transform_matrix"><code class="docutils literal notranslate"><span class="pre">Lattice.get_transform_matrix()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.merge_colinear_edges"><code class="docutils literal notranslate"><span class="pre">Lattice.merge_colinear_edges()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.merge_nonunique_nodes"><code class="docutils literal notranslate"><span class="pre">Lattice.merge_nonunique_nodes()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.obtain_best_shift_vector"><code class="docutils literal notranslate"><span class="pre">Lattice.obtain_best_shift_vector()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.refine_mesh"><code class="docutils literal notranslate"><span class="pre">Lattice.refine_mesh()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.remove_duplicate_edges_adjacency"><code class="docutils literal notranslate"><span class="pre">Lattice.remove_duplicate_edges_adjacency()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.remove_duplicate_edges_nodes"><code class="docutils literal notranslate"><span class="pre">Lattice.remove_duplicate_edges_nodes()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.remove_self_incident_edges"><code class="docutils literal notranslate"><span class="pre">Lattice.remove_self_incident_edges()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.set_edge_radii"><code class="docutils literal notranslate"><span class="pre">Lattice.set_edge_radii()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.split_edges_by_points"><code class="docutils literal notranslate"><span class="pre">Lattice.split_edges_by_points()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.to_dict"><code class="docutils literal notranslate"><span class="pre">Lattice.to_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Lattice.update_representations"><code class="docutils literal notranslate"><span class="pre">Lattice.update_representations()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#the-lattice-class">The <code class="docutils literal notranslate"><span class="pre">Lattice</span></code> class</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#the-catalogue-class">The <code class="docutils literal notranslate"><span class="pre">Catalogue</span></code> class</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#data.Catalogue"><code class="docutils literal notranslate"><span class="pre">Catalogue</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#data.Catalogue.from_dict"><code class="docutils literal notranslate"><span class="pre">Catalogue.from_dict()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Catalogue.from_file"><code class="docutils literal notranslate"><span class="pre">Catalogue.from_file()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Catalogue.get_unit_cell"><code class="docutils literal notranslate"><span class="pre">Catalogue.get_unit_cell()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data.Catalogue.to_file"><code class="docutils literal notranslate"><span class="pre">Catalogue.to_file()</span></code></a></li>
-</ul>
-</li>
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-data.elasticity_func">data.elasticity_func module</a></li>
 </ul>
@@ -307,8 +267,29 @@ All nodal coordinates which are very close to 0 or UC_L
 <dt class="sig sig-object py" id="data.Lattice.create_windowed">
 <span class="sig-name descname"><span class="pre">create_windowed</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Lattice" title="data.lattice.Lattice"><span class="pre">Lattice</span></a></span></span><a class="headerlink" href="#data.Lattice.create_windowed" title="Permalink to this definition"></a></dt>
 <dd><p>Create a windowed representation of a lattice</p>
-<p>Operate on reduced node coordinates.
-Return a new lattice instance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>a new lattice instance</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p><a class="reference internal" href="#data.Lattice" title="data.Lattice">Lattice</a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">],[</span><span class="mi">3</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;num_nodes&#39;: 4, &#39;num_edges&#39;: 4}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat_w</span> <span class="o">=</span> <span class="n">lat</span><span class="o">.</span><span class="n">create_windowed</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat_w</span>
+<span class="go">{&#39;num_nodes&#39;: 5, &#39;num_edges&#39;: 4}</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//data-1.py">Source code</a>, <a class="reference external" href=".//data-1.png">png</a>, <a class="reference external" href=".//data-1.hires.png">hires.png</a>, <a class="reference external" href=".//data-1.pdf">pdf</a>)</p>
+<figure class="align-default">
+<img alt="_images/data-1.png" class="plot-directive" src="_images/data-1.png" />
+</figure>
 </dd></dl>
 
 <dl class="py method">
@@ -322,9 +303,9 @@ Return a new lattice instance.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span><span class="o">.</span><span class="n">crop_unit_cell</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-1.py">Source code</a>, <a class="reference external" href=".//data-1.png">png</a>, <a class="reference external" href=".//data-1.hires.png">hires.png</a>, <a class="reference external" href=".//data-1.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-2.py">Source code</a>, <a class="reference external" href=".//data-2.png">png</a>, <a class="reference external" href=".//data-2.hires.png">hires.png</a>, <a class="reference external" href=".//data-2.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-1.png" class="plot-directive" src="_images/data-1.png" />
+<img alt="_images/data-2.png" class="plot-directive" src="_images/data-2.png" />
 </figure>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -360,9 +341,9 @@ Return a new lattice instance.</p>
 <span class="go">[({0, 2}, array([[0.5, 0.5, 0. ]])), ({1, 3}, array([[0.5, 0.5, 0. ]]))]</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-2.py">Source code</a>, <a class="reference external" href=".//data-2.png">png</a>, <a class="reference external" href=".//data-2.hires.png">hires.png</a>, <a class="reference external" href=".//data-2.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-3.py">Source code</a>, <a class="reference external" href=".//data-3.png">png</a>, <a class="reference external" href=".//data-3.hires.png">hires.png</a>, <a class="reference external" href=".//data-3.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-2.png" class="plot-directive" src="_images/data-2.png" />
+<img alt="_images/data-3.png" class="plot-directive" src="_images/data-3.png" />
 </figure>
 </dd></dl>
 
@@ -382,9 +363,9 @@ Return a new lattice instance.</p>
 <span class="go">[({0, 1}, array([[0.5, 0. , 0. ]]))]</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-3.py">Source code</a>, <a class="reference external" href=".//data-3.png">png</a>, <a class="reference external" href=".//data-3.hires.png">hires.png</a>, <a class="reference external" href=".//data-3.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-4.py">Source code</a>, <a class="reference external" href=".//data-4.png">png</a>, <a class="reference external" href=".//data-4.hires.png">hires.png</a>, <a class="reference external" href=".//data-4.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-3.png" class="plot-directive" src="_images/data-3.png" />
+<img alt="_images/data-4.png" class="plot-directive" src="_images/data-4.png" />
 </figure>
 </dd></dl>
 
@@ -392,17 +373,17 @@ Return a new lattice instance.</p>
 <dt class="sig sig-object py" id="data.Lattice.get_periodic_partners">
 <span class="sig-name descname"><span class="pre">get_periodic_partners</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span></span></span><a class="headerlink" href="#data.Lattice.get_periodic_partners" title="Permalink to this definition"></a></dt>
 <dd><p>Calculate periodic partners.</p>
-<p>Check is done whether lattice is in a valid window condition.
-:returns:</p>
-<blockquote>
-<div><dl class="simple">
+<p>Check is done whether lattice is in a valid window condition.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><dl class="simple">
 <dt>list of 2-element sets of node numbers</dt><dd><p>of periodic partners</p>
 </dd>
 </dl>
-</div></blockquote>
-<dl class="field-list simple">
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>periodic_partners</p>
+</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>periodic_partners</p>
 </dd>
 </dl>
 </dd></dl>
@@ -432,9 +413,9 @@ and similar angle between two unit vectors along the edges.</p>
 <span class="go">{&#39;num_nodes&#39;: 2, &#39;num_edges&#39;: 1}</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-4.py">Source code</a>, <a class="reference external" href=".//data-4.png">png</a>, <a class="reference external" href=".//data-4.hires.png">hires.png</a>, <a class="reference external" href=".//data-4.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-5.py">Source code</a>, <a class="reference external" href=".//data-5.png">png</a>, <a class="reference external" href=".//data-5.hires.png">hires.png</a>, <a class="reference external" href=".//data-5.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-4.png" class="plot-directive" src="_images/data-4.png" />
+<img alt="_images/data-5.png" class="plot-directive" src="_images/data-5.png" />
 </figure>
 </dd></dl>
 
@@ -446,8 +427,8 @@ and collapse self-incident edges</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="data.Lattice.obtain_best_shift_vector">
-<span class="sig-name descname"><span class="pre">obtain_best_shift_vector</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.obtain_best_shift_vector" title="Permalink to this definition"></a></dt>
+<dt class="sig sig-object py" id="data.Lattice.obtain_shift_vector">
+<span class="sig-name descname"><span class="pre">obtain_shift_vector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_num_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_edge_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.005</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.obtain_shift_vector" title="Permalink to this definition"></a></dt>
 <dd><p>Get a shift vector for windowed representation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Raises</dt>
@@ -534,9 +515,9 @@ in point_array.</p>
 <span class="go">{&#39;num_nodes&#39;: 3, &#39;num_edges&#39;: 2}</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-5.py">Source code</a>, <a class="reference external" href=".//data-5.png">png</a>, <a class="reference external" href=".//data-5.hires.png">hires.png</a>, <a class="reference external" href=".//data-5.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-6.py">Source code</a>, <a class="reference external" href=".//data-6.png">png</a>, <a class="reference external" href=".//data-6.hires.png">hires.png</a>, <a class="reference external" href=".//data-6.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-5.png" class="plot-directive" src="_images/data-5.png" />
+<img alt="_images/data-6.png" class="plot-directive" src="_images/data-6.png" />
 </figure>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]]</span>
@@ -549,9 +530,9 @@ in point_array.</p>
 <span class="go">{&#39;num_nodes&#39;: 4, &#39;num_edges&#39;: 4}</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-6.py">Source code</a>, <a class="reference external" href=".//data-6.png">png</a>, <a class="reference external" href=".//data-6.hires.png">hires.png</a>, <a class="reference external" href=".//data-6.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-7.py">Source code</a>, <a class="reference external" href=".//data-7.png">png</a>, <a class="reference external" href=".//data-7.hires.png">hires.png</a>, <a class="reference external" href=".//data-7.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-6.png" class="plot-directive" src="_images/data-6.png" />
+<img alt="_images/data-7.png" class="plot-directive" src="_images/data-7.png" />
 </figure>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>

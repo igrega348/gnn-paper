@@ -4,8 +4,6 @@ from data.lattice import WindowingException
 from tqdm import tqdm
 from multiprocessing import Pool
 from random import shuffle
-import pandas as pd
-import plotly.express as px
 from typing import Tuple
 # %%
 def try_window(data: dict) -> Tuple:
@@ -27,7 +25,8 @@ def create_window(lat_data: dict) -> dict:
 
 def main():
     cat = Catalogue.from_file('./filtered_cat.lat', 0)
-    lat_data = [data for data in cat[:]*10]
+    cat = cat[:100]
+    lat_data = [data for data in cat]*10
     shuffle(lat_data)
     with Pool(processes=5) as p:
         attempts = list(tqdm(p.imap_unordered(try_window, lat_data), total=len(lat_data), smoothing=0.1))
@@ -42,7 +41,7 @@ def main():
     with Pool(processes=5) as p:
         windowed = list(tqdm(p.imap(create_window, lat_data), total=len(lat_data), smoothing=0.1))
 
-    selected = [data['name'] for data in windowed if hasattr(data, 'name')]
+    selected = [data['name'] for data in windowed if 'name' in data]
     print(f'Keeping {len(selected)} lattices')
     
     data_dict = {data['name']:data for data in lat_data if data['name'] in selected}

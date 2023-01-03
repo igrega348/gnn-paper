@@ -978,10 +978,10 @@ class Lattice:
         return True
 
     def get_periodic_partners(self) -> list:
-        """
-        Calculate periodic partners.
+        """Calculate periodic partners.
 
         Check is done whether lattice is in a valid window condition.
+
         Returns:
             periodic_partners: list of 2-element sets of node numbers
                 of periodic partners
@@ -990,6 +990,7 @@ class Lattice:
         # node types and nodal connectivity 
         # have been calculated in the window conditions call
         TOL_PARTNER = 5e-4
+        UC_L = self.UC_L
         node_types = self.node_types
         nodes = self.reduced_node_coordinates
         edges = self.edge_adjacency
@@ -1000,12 +1001,12 @@ class Lattice:
             if n in nodes_already_in: 
                 continue
             x = nodes[n, :]
-            dim = np.flatnonzero((np.abs(x)<self.TOL_DIST) | (np.abs(x-1)<self.TOL_DIST))
+            dim = np.flatnonzero((np.abs(x)<self.TOL_DIST) | (np.abs(x-UC_L)<self.TOL_DIST))
             assert len(dim)==1
             dim = dim[0]
             if abs(x[dim])<self.TOL_DIST: 
-                dim_partner = 1
-            elif abs(x[dim]-1)<self.TOL_DIST:
+                dim_partner = UC_L
+            elif abs(x[dim]-UC_L)<self.TOL_DIST:
                 dim_partner = 0
             else:
                 RuntimeError
@@ -1285,9 +1286,15 @@ class Lattice:
         face_nodes_nums = list(node_types['face_nodes'])
         face_pts = self.reduced_node_coordinates[face_nodes_nums, :]
         for view_dim in [0,1,2]:
-            dims = [0,1,2].remove(view_dim)
-            _, cnts = np.unique(face_pts[:, dims], axis=0, return_counts=True)
-            if not np.allclose(cnts, np.ones_like(cnts)):
+            dims = list({0,1,2} - {view_dim})
+            planar_pts = face_pts[:, dims]
+            mask_sides = np.any(
+                (planar_pts<self.TOL_DIST) | (planar_pts>self.UC_L-self.TOL_DIST),
+                axis=1
+            )
+            selected_pts = planar_pts[~mask_sides, :]
+            _, cnts = np.unique(selected_pts, axis=0, return_counts=True)
+            if not np.all(cnts==2):
                 return False
         return True
 
@@ -1345,8 +1352,36 @@ class Lattice:
     def create_windowed(self) -> "Lattice":
         """Create a windowed representation of a lattice
 
-        Operate on reduced node coordinates. 
-        Return a new lattice instance.
+        Returns:
+            Lattice: a new lattice instance
+
+        Examples:
+            >>> nodes = [[0,0,0],[1,0,0],[1,1,0],[0,1,0]]
+            >>> edges = [[0,1],[1,2],[2,3],[3,0]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat
+            {'num_nodes': 4, 'num_edges': 4}
+            >>> lat_w = lat.create_windowed()
+            >>> lat_w
+            {'num_nodes': 5, 'num_edges': 4}
+
+            .. plot::
+
+                import matplotlib.pyplot as plt
+                from data import Lattice
+                from utils import plotting
+                nodes = [[0,0,0],[1,0,0],[1,1,0],[0,1,0]]
+                edges = [[0,1],[1,2],[2,3],[3,0]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, axes = plt.subplots(ncols=2, figsize=(6,3))
+                plotting.plot_unit_cell_2d(lat, ax=axes[0])
+                lat_w = lat.create_windowed()
+                plotting.plot_unit_cell_2d(lat_w, ax=axes[1])
+                for ax in axes: ax.set_aspect('equal')
+                axes[0].set_title('Original')
+                axes[1].set_title('Windowed')
+                fig.tight_layout()
+                axes
         """
         shift_vector = self.obtain_shift_vector()
         newlat = Lattice(**self.to_dict())
@@ -1361,6 +1396,78 @@ class Lattice:
             newlat.split_edges_by_points(edge_intersections)
         assert newlat.check_window_conditions()
         return newlat
+
+
+    def calculate_fundamental_representation(self) -> None:
+        """
+        Calculate the fundamental representation of lattice 
+        which is based on inner nodes and tesselation vectors.
+
+        Operates on reduced node - edge adjacency representation
+        """
+        pp_list = self.get_periodic_partners()
+        pp_dict = self._pp_list_to_dict(pp_list)
+        # node types were calculated in get_periodic_partners call
+        node_types = self.node_types
+        inner_nodes = node_types['inner_nodes']
+        assert len(inner_nodes)>0
+        edges = self.edge_adjacency
+        nodes = self.reduced_node_coordinates
+
+        used_edge_indices = []
+        new_edges = []
+        t_vecs = []
+        for i_edge, e in enumerate(edges):
+            if i_edge in used_edge_indices: 
+                # every edge is transcribed just once
+                continue 
+            used_edge_indices.append(i_edge) 
+            loc_edge = []
+            loc_t_vecs = [np.zeros(3), np.zeros(3)]
+            for i_point, point_num in enumerate(e):
+                p_loc = point_num
+                ntrials = 0
+                # backtrack the point all the way until we hit an inner node
+                while not p_loc in inner_nodes:    
+                    # partner is either connected to p_loc 
+                    # by unused edge (priority) or it is periodic partner
+                    conn_edge_ind = np.flatnonzero(
+                                        np.any(edges==p_loc, axis=1)
+                                        )
+                    assert len(conn_edge_ind)==1
+                    conn_edge_ind = conn_edge_ind[0]
+                    if not conn_edge_ind in used_edge_indices:
+                        partner_edge = edges[conn_edge_ind]
+                        partner = (set(partner_edge) - {p_loc}).pop()
+                        used_edge_indices.append(conn_edge_ind) 
+                    else: 
+                        # pick periodic partner and 
+                        # need to add to translation vector
+                        partner = pp_dict[p_loc]
+                        t = nodes[p_loc, :] - nodes[partner, :] 
+                        loc_t_vecs[i_point] += t
+                    
+                    ntrials += 1
+                    p_loc = partner
+                    assert ntrials<=10 # avoid hanging loop
+
+                # Use p_loc in the edge adjacency. 
+                # Together with loc_t_vec they set edge coordinates
+                loc_edge.append(p_loc)
+
+            new_edges.append(loc_edge)
+            t_vecs.append(np.concatenate(loc_t_vecs))
+        
+        new_edges = np.row_stack(new_edges)
+        t_vecs = np.row_stack(t_vecs)
+        # reduce t_vecs to zero first 3 columns
+        t_0 = np.copy(t_vecs[:,:3])
+        t_vecs[:,:3] -= t_0
+        t_vecs[:,3:] -= t_0
+        assert set(new_edges.flatten())==inner_nodes
+        self.fundamental_edge_adjacency = new_edges
+        self.fundamental_tesselation_vecs = t_vecs
+        self.num_fundamental_edges = self.fundamental_edge_adjacency.shape[0]
 
 
     def to_dict(self) -> dict:
