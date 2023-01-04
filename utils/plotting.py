@@ -11,7 +11,7 @@ from torch.utils.data import ConcatDataset
 import plotly.express as px
 import plotly.graph_objects as go
 from math import floor
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Tuple
 
 
 def parity_plot(true, pred, fn: str):
@@ -53,29 +53,50 @@ def surface_plot(true, pred, dataset, nplot: int, fn: str):
     os.makedirs(os.path.dirname(fn), exist_ok=True)
     plt.savefig(fn, dpi=300, facecolor='w', bbox_inches='tight', pad_inches=0.1)
 
+def get_nodes_edge_coords(
+    lat, repr, coords, highlight_nodes: Optional[Iterable]=None
+) -> Tuple[np.ndarray, np.ndarray, Iterable, np.ndarray]:
 
-def plot_unit_cell_2d(
-    lat, repr='reduced', node_numbers=True,
-    ax=None
-    ) -> plt.Axes:
-    if repr=='transformed':
-        if not hasattr(lat, 'transformed_node_coordinates'):
-            lat.calculate_transformed_coordinates()
-        nodes = lat.transformed_node_coordinates
+    nodes = lat.reduced_node_coordinates
+
+    if coords=='transformed': 
+        Q = lat.get_transform_matrix()
+    elif coords=='reduced':
+        Q = np.eye(3)
+    else: 
+        raise ValueError
+    Q6 = np.block([[Q, np.zeros_like(Q)],[np.zeros_like(Q), Q]])
+
+    if repr=='cropped':
         edges = lat.edge_adjacency
-    elif repr=='reduced':
-        nodes = lat.reduced_node_coordinates
-        edges = lat.edge_adjacency
+        edge_coords = lat._node_adj_to_ec(nodes, edges)
+        node_numbers = np.arange(nodes.shape[0])
     elif repr=='fundamental':
         if not hasattr(lat, 'fundamental_edge_adjacency'):
             lat.calculate_fundamental_representation()
-        edge_coords = lat._node_adj_to_ec(
-            lat.reduced_node_coordinates, lat.fundamental_edge_adjacency
-        )
+        edges = lat.fundamental_edge_adjacency
+        edge_coords = lat._node_adj_to_ec(nodes, edges)
         edge_coords += lat.fundamental_tesselation_vecs
-        nodes, edges = lat._ec_to_node_adj(edge_coords)
+        uq_inds = np.unique(edges)
+        nodes = nodes[uq_inds] # only plot the fundamental nodes
+        if isinstance(highlight_nodes, Iterable):
+            assert np.all(np.in1d(highlight_nodes, uq_inds)), \
+                "Highlighted node must be a fundamental node"
+            highlight_nodes = np.searchsorted(uq_inds, highlight_nodes)
+        node_numbers = uq_inds
     else:
-        raise NotImplementedError
+        raise ValueError
+
+    return nodes@(Q.T), edge_coords@(Q6.T), highlight_nodes, node_numbers
+
+def plot_unit_cell_2d(
+    lat, repr='cropped', coords='reduced', show_node_numbers=True,
+    ax=None
+    ) -> plt.Axes:
+    
+    nodes, edge_coords, _, node_numbers = get_nodes_edge_coords(
+        lat, repr, coords
+    )
     
     if not isinstance(ax, plt.Axes):
         fig = plt.figure(figsize=(5,5),facecolor='w')
@@ -83,42 +104,30 @@ def plot_unit_cell_2d(
     ax.scatter(nodes[:,0], nodes[:,1])
     segments = []
     colors = [] 
-    for i_e, e in enumerate(edges):
-        line = nodes[e]
-        segments.append([(line[0,0], line[0,1]), 
-                        (line[1,0], line[1,1])])
+    for i_e, e in enumerate(edge_coords):
+        p0, p1 = e[:3], e[3:]
+        x_0, y_0, z_0 = p0
+        x_1, y_1, z_1 = p1
+        segments.append([(x_0, y_0), 
+                        (x_1, y_1)])
         colors.append(f'C{i_e%5}')
     lc = LineCollection(segments, colors=colors, linewidths=2)
     ax.add_collection(lc)
-    if node_numbers:
-        for ni, n in enumerate(nodes):
-            ax.text(n[0],n[1],f"{ni}")
+    if show_node_numbers:
+        for n, num in zip(nodes, node_numbers):
+            ax.text(n[0],n[1],f"{num}")
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     return ax
 
 def plot_unit_cell_3d(
-    lat, repr='reduced', node_numbers=True,
+    lat, repr='cropped', coords='reduced', show_node_numbers=True,
     ax=None
     ) -> plt.Axes:
-    if repr=='transformed':
-        if not hasattr(lat, 'transformed_node_coordinates'):
-            lat.calculate_transformed_coordinates()
-        nodes = lat.transformed_node_coordinates
-        edges = lat.edge_adjacency
-    elif repr=='reduced':
-        nodes = lat.reduced_node_coordinates
-        edges = lat.edge_adjacency
-    elif repr=='fundamental':
-        if not hasattr(lat, 'fundamental_edge_adjacency'):
-            lat.calculate_fundamental_representation()
-        edge_coords = lat._node_adj_to_ec(
-            lat.reduced_node_coordinates, lat.fundamental_edge_adjacency
-        )
-        edge_coords += lat.fundamental_tesselation_vecs
-        nodes, edges = lat._ec_to_node_adj(edge_coords)
-    else:
-        raise NotImplementedError
+
+    nodes, edge_coords, _, node_numbers = get_nodes_edge_coords(
+        lat, repr, coords
+    )
     
     if not isinstance(ax, plt.Axes):
         fig = plt.figure(figsize=(5,5),facecolor='w')
@@ -126,50 +135,39 @@ def plot_unit_cell_3d(
     ax.scatter(nodes[:,0], nodes[:,1], nodes[:,2])
     segments = []
     colors = [] 
-    for i_e, e in enumerate(edges):
-        line = nodes[e]
-        segments.append([(line[0,0], line[0,1], line[0,2]), 
-                        (line[1,0], line[1,1], line[1,2])])
+    for i_e, e in enumerate(edge_coords):
+        p0, p1 = e[:3], e[3:]
+        x_0, y_0, z_0 = p0
+        x_1, y_1, z_1 = p1
+        segments.append([(x_0, y_0, z_0), 
+                        (x_1, y_1, z_1)])
         colors.append(f'C{i_e%5}')
     lc = Line3DCollection(segments, colors=colors, linewidths=2)
     ax.add_collection(lc)
-    if node_numbers:
-        for ni, n in enumerate(nodes):
-            ax.text(n[0],n[1],n[2],f"{ni}")
+    if show_node_numbers:
+        for n, num in zip(nodes, node_numbers):
+            ax.text(n[0],n[1],n[2],f"{num}")
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     return ax
 
 def plotly_unit_cell_3d(
-    lat, repr='reduced', node_numbers=False, 
+    lat, repr='cropped', coords='reduced', show_node_numbers=False, 
     fig=None, subplot: Optional[dict] = None,
     highlight_nodes: Optional[Iterable] = None,
     show_uc_box: bool = False
     ):
-    if repr=='transformed':
-        if not hasattr(lat, 'transformed_node_coordinates'):
-            lat.calculate_transformed_coordinates()
-        nodes = lat.transformed_node_coordinates
-        edges = lat.edge_adjacency
-    elif repr=='reduced':
-        nodes = lat.reduced_node_coordinates
-        edges = lat.edge_adjacency
-    elif repr=='fundamental':
-        if not hasattr(lat, 'fundamental_edge_adjacency'):
-            lat.calculate_fundamental_representation()
-        edge_coords = lat._node_adj_to_ec(
-            lat.reduced_node_coordinates, lat.fundamental_edge_adjacency
-        )
-        edge_coords += lat.fundamental_tesselation_vecs
-        nodes, edges = lat._ec_to_node_adj(edge_coords)
-    else:
-        raise NotImplementedError
+    nodes, edge_coords, highlight_nodes, node_numbers = get_nodes_edge_coords(
+        lat, repr, coords, highlight_nodes
+    )
 
     colororder = px.colors.qualitative.G10
 
     x,y,z = nodes.T
     if isinstance(highlight_nodes, Iterable):
+        assert np.all(np.in1d(highlight_nodes, np.arange(nodes.shape[0]))), \
+            "Highlighted nodes outside of limits"
         colors = ['rgba(40,40,40,0.3)' for _ in range(len(x))]
         for i_node_highlight in highlight_nodes:
             colors[i_node_highlight] = 'rgb(255,0,0)'
@@ -177,7 +175,7 @@ def plotly_unit_cell_3d(
         colors = [colororder[i%10] for i in range(len(x))]
     if not isinstance(fig, go.Figure):
         fig = go.Figure()
-    mode = 'text+markers' if node_numbers else 'markers'
+    mode = 'text+markers' if show_node_numbers else 'markers'
     if isinstance(subplot, dict):
         subplot_args = dict(
                 row=floor(subplot['index']/subplot['ncols']) + 1,
@@ -199,8 +197,8 @@ def plotly_unit_cell_3d(
                 [0,1,1]
             ]
         )
-        if repr=='transformed':
-            pts = lat._transform_coordinates(pts, lat.get_transform_matrix())
+        if coords=='transformed':
+            pts = lat.transform_coordinates(pts)
         inds = [1,0,3,2,None,0,4,7,3,None,4,5,6,7,None,5,1,2,6]
 
         fig.add_scatter3d(
@@ -218,7 +216,7 @@ def plotly_unit_cell_3d(
         x=x, y=y, z=z,
         marker={'color':colors},
         mode=mode,
-        text=np.arange(len(x)),
+        text=node_numbers,
         textfont={'size':14},
         showlegend=False,
         name='nodes',
@@ -228,8 +226,8 @@ def plotly_unit_cell_3d(
     x = []
     y = []
     z = []
-    for i_e, e in enumerate(edges):
-        n0, n1 = nodes[e]
+    for i_e, e in enumerate(edge_coords):
+        n0, n1 = e[:3], e[3:]
         x_0, y_0, z_0 = n0
         x_1, y_1, z_1 = n1
         x.extend([x_0, x_1, None])

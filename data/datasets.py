@@ -234,10 +234,10 @@ class GLAMMDataset(InMemoryDataset):
                     lat.reduced_node_coordinates, lat.fundamental_edge_adjacency
                 )
                 edge_coords += lat.fundamental_tesselation_vecs
-                edge_coords[:,:3] = lat._transform_coordinates(
+                edge_coords[:,:3] = lat.transform_coordinates(
                     edge_coords[:,:3], lat.get_transform_matrix()
                     )
-                edge_coords[:,3:] = lat._transform_coordinates(
+                edge_coords[:,3:] = lat.transform_coordinates(
                     edge_coords[:,3:], lat.get_transform_matrix()
                     )
                 if self.repr=='fund_tess':
@@ -252,7 +252,7 @@ class GLAMMDataset(InMemoryDataset):
                         edge_adjacency = get_uq_node_nums(edge_adjacency)
 
                 if self.node_pos:
-                    nodal_pos = lat._transform_coordinates(
+                    nodal_pos = lat.transform_coordinates(
                         nodal_pos, lat.get_transform_matrix()
                     )
 
@@ -528,14 +528,14 @@ class GLAMM_tens_Dataset(InMemoryDataset):
                 tessellation_vecs = lat.fundamental_tesselation_vecs[:,3:]
                 unit_shifts = np.zeros_like(tessellation_vecs).astype(int)
                 unit_shifts[tessellation_vecs!=0] = np.sign(tessellation_vecs[tessellation_vecs!=0])
-                tessellation_vecs = lat._transform_coordinates(
+                tessellation_vecs = lat.transform_coordinates(
                     tessellation_vecs, lat.get_transform_matrix()
                 )
                 edge_coords += lat.fundamental_tesselation_vecs
-                edge_coords[:,:3] = lat._transform_coordinates(
+                edge_coords[:,:3] = lat.transform_coordinates(
                     edge_coords[:,:3], lat.get_transform_matrix()
                     )
-                edge_coords[:,3:] = lat._transform_coordinates(
+                edge_coords[:,3:] = lat.transform_coordinates(
                     edge_coords[:,3:], lat.get_transform_matrix()
                     )
                 if self.repr=='fund_tess':
@@ -550,7 +550,7 @@ class GLAMM_tens_Dataset(InMemoryDataset):
                         edge_adjacency = get_uq_node_nums(edge_adjacency)
 
                 if self.node_pos:
-                    nodal_pos = lat._transform_coordinates(
+                    nodal_pos = lat.transform_coordinates(
                         nodal_pos, lat.get_transform_matrix()
                     )
 
@@ -815,14 +815,14 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
                 tessellation_vecs = lat.fundamental_tesselation_vecs[:,3:]
                 unit_shifts = np.zeros_like(tessellation_vecs).astype(int)
                 unit_shifts[tessellation_vecs!=0] = np.sign(tessellation_vecs[tessellation_vecs!=0])
-                tessellation_vecs = lat._transform_coordinates(
+                tessellation_vecs = lat.transform_coordinates(
                     tessellation_vecs, lat.get_transform_matrix()
                 )
                 edge_coords += lat.fundamental_tesselation_vecs
-                edge_coords[:,:3] = lat._transform_coordinates(
+                edge_coords[:,:3] = lat.transform_coordinates(
                     edge_coords[:,:3], lat.get_transform_matrix()
                     )
-                edge_coords[:,3:] = lat._transform_coordinates(
+                edge_coords[:,3:] = lat.transform_coordinates(
                     edge_coords[:,3:], lat.get_transform_matrix()
                     )
                 if self.repr=='fund_tess':
@@ -837,7 +837,7 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
                         edge_adjacency = get_uq_node_nums(edge_adjacency)
 
                 if self.node_pos:
-                    nodal_pos = lat._transform_coordinates(
+                    nodal_pos = lat.transform_coordinates(
                         nodal_pos, lat.get_transform_matrix()
                     )
 

@@ -25,10 +25,10 @@ def create_window(lat_data: dict) -> dict:
 
 def main():
     cat = Catalogue.from_file('./filtered_cat.lat', 0)
-    cat = cat[:100]
+    print(cat)
     lat_data = [data for data in cat]*10
     shuffle(lat_data)
-    with Pool(processes=5) as p:
+    with Pool(processes=6) as p:
         attempts = list(tqdm(p.imap_unordered(try_window, lat_data), total=len(lat_data), smoothing=0.1))
 
     discarded = [tup[0] for tup in attempts if tup[1]>3]
@@ -38,7 +38,7 @@ def main():
     
     # check
     lat_data = [data for data in cat if data['name'] in selected]
-    with Pool(processes=5) as p:
+    with Pool(processes=6) as p:
         windowed = list(tqdm(p.imap(create_window, lat_data), total=len(lat_data), smoothing=0.1))
 
     selected = [data['name'] for data in windowed if 'name' in data]

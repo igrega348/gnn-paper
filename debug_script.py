@@ -4,9 +4,10 @@ from data.lattice import WindowingException
 import numpy as np
 from tqdm import tqdm
 from plotly.subplots import make_subplots
+from multiprocessing import Pool
+from random import shuffle
 
 
-cat = Catalogue.from_file('./filtered_cat.lat', 0)
 # tet_Z05.7_E2424
 # names = ['cub_Z06.9_E14510']
 # names = cat.names[7800:]
@@ -17,7 +18,28 @@ cat = Catalogue.from_file('./filtered_cat.lat', 0)
 # names = ['cub_Z06.9_E11597']
 ####
 
-for lat_data in cat:
+def process_lattice(lat_data):
     lat = Lattice(**lat_data)
-    _ = lat.obtain_shift_vector()
-    break
+    try:
+        lat = lat.create_windowed()
+        lat.calculate_fundamental_representation()
+        return lat.to_dict()
+    except WindowingException:
+        return {}
+
+
+def main():
+    cat = Catalogue.from_file('./filt_wind.lat.lat', 0)
+    print(cat)
+    lat_data = [data for data in cat]
+    shuffle(lat_data)
+
+    with Pool(processes=6) as p:
+        windowed = list(tqdm(p.imap_unordered(process_lattice, lat_data), total=len(lat_data), smoothing=0.1))
+    
+    selected = [data['name'] for data in windowed if 'name' in data]
+    print(f'Keeping {len(selected)} lattices')
+
+
+if __name__=='__main__':
+    main()

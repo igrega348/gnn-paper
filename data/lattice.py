@@ -12,38 +12,33 @@ class Lattice:
     UC_L = 1.0 # length of unit cell
     # book-keeping variables
     name: str
-    code: str
     # topological representations
     reduced_node_coordinates: npt.NDArray[np.float_]
     edge_adjacency: npt.NDArray[np.int_]
-    reduced_edge_coordinates: npt.NDArray[np.float_]
-    transformed_node_coordinates: npt.NDArray[np.float_]
-    transformed_edge_coordinates: npt.NDArray[np.float_]
+
     fundamental_edge_adjacency: npt.NDArray[np.int_]
     fundamental_tesselation_vecs: npt.NDArray[np.float_]
-    num_nodes: int
-    num_edges: int
-    num_fundamental_edges: int
-    nodal_connectivity: npt.NDArray[np.int_]
+ 
     node_types: dict
-    periodic_partners: list
-    reduced_edge_lengths: npt.NDArray[np.float_]
-    transformed_edge_lengths: npt.NDArray[np.float_]
-    fundamental_edge_lengths: npt.NDArray[np.float_]
+    
     # elasticity properties
     S_tens: npt.NDArray[np.float_]
     compliance_tensors: dict
     Youngs_moduli: dict
     scaling_exponents: dict
     # other properties
-    lattice_constants: npt.NDArray[np.float_]
+    lattice_constants: npt.NDArray[np.float_] = np.array([1.,1.,1.,90,90,90])
     rel_dens: float
     edge_radii: npt.NDArray[np.float_]    
+    ATTRS_TO_COPY: List = ['name', 'lattice_constants', 'UC_L']
+
 
     def __init__(
-            self,*, name=None, code=None, lattice_constants=None,
-            nodal_positions=None, edge_adjacency=None, 
-            edge_coordinates=None, **kwargs
+            self,*, name=None, lattice_constants=None,
+            nodal_positions=None, 
+            edge_adjacency=None, edge_coordinates=None, 
+            fundamental_edge_adjacency=None, fundamental_tesselation_vecs=None,
+            **kwargs
             ) -> None:
         """Construct lattice unit cell.
 
@@ -51,7 +46,7 @@ class Lattice:
 
         Examples:
         
-            Three ways of initialisation.
+            Four ways of initialisation.
                 - by unpacking the catalogue dictionary
                 
                 >>> from data import Lattice, Catalogue
@@ -82,13 +77,28 @@ class Lattice:
                 >>> ])
                 >>> lat = Lattice(edge_coordinates=edge_coords, name='pyramid')
                 >>> lat
-                {'name': 'pyramid', 'num_edges': 6}
+                {'name': 'pyramid', 'num_nodes': 4, 'num_edges': 6}
+
+                - by specifying fundamental representation
+
+                >>> # simple cubic in fundamental representation
+                >>> nodes = [[0.5,0.5,0.5]]
+                >>> fundamental_edge_adjacency = [[0,0],[0,0],[0,0]]
+                >>> tess_vecs = [[0,0,0,1,0,0],[0,0,0,0,1,0],[0,0,0,0,0,1]]
+                >>> lat = Lattice(
+                >>>     nodal_positions=nodes,
+                >>>     fundamental_edge_adjacency=fundamental_edge_adjacency,
+                >>>     fundamental_tesselation_vecs=tess_vecs
+                >>> )
+                >>> lat.crop_unit_cell()
+                >>> lat
+                {'num_nodes': 7, 'num_edges': 6}
+
+                
 
         """
         if isinstance(name, str):
             self.name = name
-        if isinstance(code, str):
-            self.code = code
 
         if 'reduced_node_coordinates' in kwargs:
             nodal_positions = kwargs['reduced_node_coordinates']
@@ -98,6 +108,10 @@ class Lattice:
             edge_adjacency = np.array(edge_adjacency)
         if isinstance(edge_coordinates, Sequence):
             edge_coordinates = np.array(edge_coordinates)
+        if isinstance(fundamental_edge_adjacency, Sequence):
+            fundamental_edge_adjacency = np.array(fundamental_edge_adjacency)
+        if isinstance(fundamental_tesselation_vecs, Sequence):
+            fundamental_tesselation_vecs = np.array(fundamental_tesselation_vecs)
         
         if isinstance(lattice_constants, Iterable):
             self.lattice_constants = np.array(lattice_constants, dtype=float)
@@ -120,30 +134,45 @@ class Lattice:
             self.scaling_exponents = kwargs['scaling_exponents']
 
 
-        if (isinstance(nodal_positions, np.ndarray)
-            and isinstance(edge_adjacency, np.ndarray) 
-            and not isinstance(edge_coordinates, np.ndarray)):
-            # either node coordinates and edge adjacency are specified            
-            nodes = np.atleast_2d(nodal_positions).astype(np.float_)
-            assert nodes.shape[1]==3
-            self.num_nodes = nodes.shape[0]
-            self.reduced_node_coordinates = nodes
+        if (isinstance(nodal_positions, Iterable)
+            and isinstance(edge_adjacency, Iterable)):
+            assert edge_coordinates is None
+            assert fundamental_edge_adjacency is None
+            assert fundamental_tesselation_vecs is None
+            nodal_positions = np.atleast_2d(nodal_positions).astype(np.float_)
             edges = np.atleast_2d(edge_adjacency)
+            assert nodal_positions.shape[1]==3
+            self.reduced_node_coordinates = nodal_positions
             assert edges.shape[1]==2
             assert edges.min()>=0 # ensure 0-based indexing
-            assert edges.max()<nodes.shape[0]
+            assert edges.max()<nodal_positions.shape[0]
             edges = np.sort(edges, axis=1)
             edges = edges[np.argsort(edges[:,0]), :]
-            self.num_edges = edges.shape[0]
             assert edges.max()<self.num_nodes
             self.edge_adjacency = edges
-        elif (isinstance(edge_coordinates, np.ndarray) 
-            and not isinstance(nodal_positions, np.ndarray) 
-            and not isinstance(edge_adjacency, np.ndarray)):
+        elif (isinstance(nodal_positions, Iterable)
+            and isinstance(fundamental_edge_adjacency, Iterable)):
+            assert edge_coordinates is None
+            assert edge_adjacency is None
+            assert isinstance(fundamental_tesselation_vecs, Iterable)
+
+            nodal_positions = np.atleast_2d(nodal_positions).astype(np.float_)
+            fundamental_edge_adjacency = np.atleast_2d(fundamental_edge_adjacency)
+            fundamental_tesselation_vecs = np.atleast_2d(fundamental_tesselation_vecs)
+            assert nodal_positions.shape[1]==3
+            assert fundamental_edge_adjacency.shape[1]==2
+            assert fundamental_tesselation_vecs.shape[1]==6
+            edge_coords = self._node_adj_to_ec(
+                nodal_positions, fundamental_edge_adjacency
+            )
+            edge_coords += fundamental_tesselation_vecs
+            self.update_representations(edge_coords=edge_coords)
+        elif isinstance(edge_coordinates, Iterable):
+            assert nodal_positions is None
+            assert edge_adjacency is None
             edge_coordinates = np.atleast_2d(edge_coordinates)
             assert edge_coordinates.shape[1]==6
-            self.reduced_edge_coordinates = edge_coordinates
-            self.num_edges = edge_coordinates.shape[0]
+            self.update_representations(edge_coords=edge_coordinates)
         else:
             raise NotImplementedError(
                 'Lattice cell can be initialised from either '\
@@ -160,6 +189,40 @@ class Lattice:
         if hasattr(self, 'num_edges'):
             repr_dict['num_edges'] = self.num_edges
         return repr_dict.__repr__()
+
+    @property
+    def num_nodes(self) -> int:
+        assert self.reduced_node_coordinates.ndim==2
+        return self.reduced_node_coordinates.shape[0]
+
+
+    @property
+    def num_edges(self) -> int:
+        assert self.edge_adjacency.ndim==2
+        return self.edge_adjacency.shape[0]
+
+
+    @property
+    def num_fundamental_nodes(self) -> int:
+        uq_inds = np.unique(self.fundamental_edge_adjacency)
+        return len(uq_inds)
+
+
+    @property
+    def num_fundamental_edges(self) -> int:
+        if not hasattr(self, 'fundamental_edge_adjacency'):
+            raise AttributeError('Calculate fundamental representation first')
+        else:
+            assert self.fundamental_edge_adjacency.ndim==2
+            assert (self.fundamental_tesselation_vecs.shape[0]
+                ==self.fundamental_edge_adjacency.shape[0])
+            return self.fundamental_edge_adjacency.shape[0]
+
+    
+    @property
+    def transformed_node_coordinates(self) -> npt.NDArray:
+        nodes = self.reduced_node_coordinates
+        return self.transform_coordinates(nodes)
 
 
     def calculate_UC_volume(self) -> float:
@@ -227,28 +290,22 @@ class Lattice:
 
         return transform_mat
 
-    def calculate_transformed_coordinates(self) -> None:
-        """Transform the reduced unit cell coordinates."""
-        nodes_in = self.reduced_node_coordinates
-        transform_mat = self.get_transform_matrix()
-        
-        self.transformed_node_coordinates = self._transform_coordinates(
-            nodes_in, transform_mat
-            )
+    def transform_coordinates(
+        self, coordinates: Iterable,
+        ) -> np.ndarray:
+        """Transform coordinates based on lattice constants.
 
-    @staticmethod
-    def _transform_coordinates(
-        coordinates: npt.NDArray[np.float_],
-        transform_matrix: npt.NDArray[np.float_]
-        ):
-        """
-        Transform nodal coordinates or edge vectors.
+        Coordinates can be any O(3) vectors (e.g. node positions or edge vectors).
 
-        Parameters:
-            - coordinates: (N,3) array of coordinates
-            - transform_matrix (3,3)
+        Args:
+            coordinates (Iterable): broadcastable into shape (N,3)
+
+        Returns:
+            np.ndarray (N,3): transformed coordinates
         """
-        nodes_out = np.matmul( transform_matrix, np.transpose(coordinates) )
+        coords = np.reshape(coordinates, (-1,3))
+        transform_matrix = self.get_transform_matrix()
+        nodes_out = np.matmul( transform_matrix, np.transpose(coords) )
         return np.transpose( nodes_out )
 
     @staticmethod
@@ -274,73 +331,39 @@ class Lattice:
         
         return transformed_coords
 
+    
+    def calculate_edge_radius(
+        self, rel_dens: float, coords: str = 'transformed'
+    ) -> float:
+        """Set edge radii according to relative density.
 
-    def set_edge_radii(self, rel_dens: float, repr: str = 'transformed'):
-        """
-        Set edge radii according to relative density.
+        .. math::
 
-        Params:
-            - rel_dens: relative density
-            - repr: 'reduced' or 'transformed'
+            r = \sqrt{\\frac{\\bar{\\rho} \ V}{\pi L}}
+        
+        where :math:`\\bar{\\rho}` is the relative density, \
+            :math:`V` is volume of the unit cell, \
+            and :math:`L` is sum of the edge lengths.
+
+        Args:
+            rel_dens (float): target relative density
+            coords (str, optional): Use 'transformed' or 'reduced' coordinates. \
+                Defaults to 'transformed'.
+
+        Returns:
+            float: edge radius that gives the target relative density
         """
-        self.rel_dens = rel_dens
-        if repr=='reduced':
-            edge_lengths = self.calculate_edge_lengths(repr='reduced')
-        elif repr=='transformed':
-            edge_lengths = self.calculate_edge_lengths(repr='transformed')
-        elif repr=='fundamental':
-            edge_lengths = self.calculate_edge_lengths(repr='fundamental')
-        else:
-            raise NotImplementedError
+        assert coords in ['reduced', 'transformed']
+        edge_lengths = self.calculate_edge_lengths(
+            edge_representation='cropped', coords=coords
+        )
         sum_edge_lengths = edge_lengths.sum()
 
         uc_vol = self.calculate_UC_volume()
 
         edge_radius = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
-        edge_radii = edge_radius*np.ones_like(edge_lengths)
-        self.edge_radii = edge_radii
-        return edge_radii
-        
-    def refine_mesh(self, min_length: float, min_div: int) -> None:
-        """
-        Split edges into at least 'min_div' segments per edge
-        and with each segment having length at least 'min_length'
-        """
-        nodes = self.reduced_node_coordinates
-        edges = self.edge_adjacency
-        new_nodes = []
-        new_edges = []
-        new_edge_radii = []
-        new_nodes.extend(nodes)
-        for i_edge, e in enumerate(edges):
-            n0 = e[0]
-            x0 = nodes[n0]
-            e_vec = nodes[e[1]] - nodes[e[0]]
-            e_norm = np.linalg.norm(e_vec)
-            e_unit = e_vec/e_norm
-            num_div = max(min_div, ceil(e_norm/min_length))
-            L_step = e_norm/num_div
-            for i in range(num_div-1):
-                x1 = x0 + e_unit*L_step
-                n1 = len(new_nodes)
-                new_nodes.append(x1)
-                new_edges.append([n0,n1])
-                if hasattr(self, 'edge_radii'):
-                    new_edge_radii.append(self.edge_radii[i_edge])
-                n0 = n1
-                x0 = x1
-            x1 = nodes[e[1]]
-            n1 = e[1]
-            new_edges.append([n0,n1])
-            if hasattr(self, 'edge_radii'):
-                new_edge_radii.append(self.edge_radii[i_edge])
-        
-        self.reduced_node_coordinates = np.row_stack(new_nodes)
-        self.edge_adjacency = np.row_stack(new_edges)
-        if hasattr(self, 'edge_radii'):
-            self.edge_radii = np.array(new_edge_radii)
-        self.update_representations()
-        
+        return edge_radius
+                
 
     def collapse_nodes_onto_boundaries(self, tol=1e-4):
         """
@@ -354,7 +377,6 @@ class Lattice:
         nodes[np.abs(nodes)<tol] = 0
         nodes[np.abs(nodes-self.UC_L)<tol] = self.UC_L
         self.reduced_node_coordinates = nodes
-        self.update_representations()
 
 
     def merge_nonunique_nodes(self, decimals: Optional[int] = None) -> None:
@@ -374,7 +396,7 @@ class Lattice:
 
         self.reduced_node_coordinates = uq_nodes
         self.edge_adjacency = edges
-        self.update_representations()
+        
 
     def remove_duplicate_edges_adjacency(self) -> None:
         """
@@ -387,7 +409,7 @@ class Lattice:
         edges = np.sort(edges, axis=1)
         uq_edges = np.unique(edges, axis=0)        
         self.edge_adjacency = uq_edges
-        self.update_representations()
+        
 
     def remove_self_incident_edges(self) -> None:
         """
@@ -400,7 +422,7 @@ class Lattice:
         edges = edges[~mask_self_connecting]
 
         self.edge_adjacency = edges
-        self.update_representations()
+        
 
     def remove_duplicate_edges_nodes(self) -> None:
         """
@@ -424,62 +446,37 @@ class Lattice:
         mask_self_connecting = edges[:,0]==edges[:,1]
         edges = edges[~mask_self_connecting]
         # arrived at unique node-adjacency representation
-
         self.reduced_node_coordinates = nodes
         self.edge_adjacency = edges
-        self.update_representations()
+
 
     def update_representations(
-        self, basis: str = 'reduced_adjacency'
+        self, edge_coords: Optional[npt.NDArray] = None
         ) -> None:
         """
         Propagate one format of representation 
         to all other available formats.
 
         Implemented options for basis:
-        - 'reduced_adjacency'
         - 'reduced_edge_coords'
 
-        Propagates to nodal coordinates, edge adjacency,
-        edge coordinates, number of nodes/edges.
         # TODO: update all relevant attributes
         """
-        if basis=='reduced_adjacency':
-            nodes = self.reduced_node_coordinates
-            edges = self.edge_adjacency
-            edges.sort(axis=1)
-            sorting_inds = np.argsort(edges[:,0])
-            edges = edges[sorting_inds,:]
-            if hasattr(self, 'edge_radii'):
-                self.edge_radii = self.edge_radii[sorting_inds]
-            self.edge_adjacency = edges
-            self.num_nodes = nodes.shape[0]
-            self.num_edges = edges.shape[0]
-            edge_coords = self._node_adj_to_ec(nodes, edges)
-            self.reduced_edge_coordinates = edge_coords
-        elif basis=='reduced_edge_coords':
-            edge_coords = self.reduced_edge_coordinates
+        if isinstance(edge_coords, np.ndarray):
+            self.reduced_node_coordinates = self.edge_adjacency = None
             nodes, edges = self._ec_to_node_adj(edge_coords)
             edges.sort(axis=1)
             sorting_inds = np.argsort(edges[:,0])
             edges = edges[sorting_inds,:]
-            if hasattr(self, 'edge_radii'):
-                self.edge_radii = self.edge_radii[sorting_inds]
-            self.edge_adjacency = edges
             self.reduced_node_coordinates = nodes
             self.edge_adjacency = edges
-            self.num_nodes = nodes.shape[0]
-            self.num_edges = edges.shape[0]
         else:
-            raise NotImplementedError('Wrong basis')
-
-        if hasattr(self, 'transformed_node_coordinates'):
-            self.calculate_transformed_coordinates()
-            nodes = self.transformed_node_coordinates
-            edge_coords = self._node_adj_to_ec(nodes, edges)
-            self.transformed_edge_coordinates = edge_coords
-        if hasattr(self, 'fundamental_edge_adjacency'):
-            self.calculate_fundamental_representation()
+            raise NotImplementedError(
+                f'edge_coords have to be specified'
+            )
+        # TODO: do we need this call?
+        # if hasattr(self, 'fundamental_edge_adjacency'):
+        #     self.calculate_fundamental_representation()
 
     @staticmethod
     def _node_adj_to_ec(nodes, edges) -> npt.NDArray[np.float_]:
@@ -489,21 +486,11 @@ class Lattice:
         return ec
         
     @staticmethod
-    def _ec_to_node_adj(edge_coords) -> tuple:
+    def _ec_to_node_adj(edge_coords) -> Tuple[npt.NDArray, npt.NDArray]:
         node_coords = np.row_stack((edge_coords[:,:3], edge_coords[:,3:]))
         nodes, inds = np.unique(node_coords, axis=0, return_inverse=True)
         numbered_edges = np.reshape(inds, (2, -1)).T
         return nodes, numbered_edges
-
-    def verify_num_nodes_edges(self) -> None:
-        assert self.num_nodes==self.reduced_node_coordinates.shape[0]
-        assert self.num_edges==self.edge_adjacency.shape[0]
-        if hasattr(self, 'transformed_node_coordinates'):
-            assert self.transformed_node_coordinates.shape[0]==self.num_nodes
-        if hasattr(self, 'reduced_edge_coordinates'):
-            assert self.reduced_edge_coordinates.shape[0]==self.num_edges
-        if hasattr(self, 'transformed_edge_coordinates'):
-            assert self.transformed_edge_coordinates.shape[0]==self.num_edges
 
     @staticmethod
     def _node_conn_edge_colin(
@@ -810,39 +797,38 @@ class Lattice:
             new_edge_coords.extend(
                 np.column_stack((nodes[end_points[:,0]], nodes[end_points[:,1]]))
             )
-        self.reduced_edge_coordinates = np.around(np.row_stack(new_edge_coords), decimals=4)
-        self.update_representations(basis='reduced_edge_coords')
+        reduced_edge_coordinates = np.around(np.row_stack(new_edge_coords), decimals=4)
+        self.update_representations(edge_coords=reduced_edge_coordinates)
         self.remove_self_incident_edges()
         self.remove_duplicate_edges_adjacency() 
         
 
     def calculate_edge_lengths(
-            self, repr: str = 'reduced'
-            ) -> npt.NDArray[np.float_]:
+            self, edge_representation: str = 'cropped', coords: str = 'reduced'
+            ) -> npt.NDArray:
+        """Calculate edge lengths in a given representation
+
+        Args:
+            edge_representation (str, optional): Use edges cropped to \
+                fit within unit cell window ('cropped') or fundamental edge \
+                representation ('fundamental'). Defaults to 'cropped'.
+            coords (str, optional): Use nodal coordinates in \
+                'reduced' or 'transformed' coordinate system. \
+                Defaults to 'reduced'.
+
+        Raises:
+            ValueError: if input parameters are not from the allowed set
+
+        Returns:
+            np.ndarray: edge lengths of shape (num_edges,) if \
+                `edge_representation`is 'cropped' or (num_fundamental_edges,) \
+                if `edge_representation` is 'fundamental'.
         """
-        Use reduced nodal coordinates - edge adjacency representation
-        as the basis for calculation.
-
-        Parameters:
-            repr: 'reduced' or 'transformed' or 'fundamental'
-
-        Returns: 
-            edge_lengths: array of shape (num_edges,) with edge lengths
-                in the selected representation
-
-        TODO: is fundamental transformed or not?
-        """
-        assert self.edge_adjacency.shape==(self.num_edges, 2)
-        if repr=='reduced':
+        if edge_representation=='cropped':
             edge_coords = self._node_adj_to_ec(
                 self.reduced_node_coordinates, self.edge_adjacency
             )
-        elif repr=='transformed':
-            self.calculate_transformed_coordinates()
-            edge_coords = self._node_adj_to_ec(
-                self.transformed_node_coordinates, self.edge_adjacency
-            )
-        elif repr=='fundamental':
+        elif edge_representation=='fundamental':
             if not hasattr(self, 'fundamental_edge_adjacency'):
                 self.calculate_fundamental_representation()
             edge_coords = self._node_adj_to_ec(
@@ -850,18 +836,23 @@ class Lattice:
                         self.fundamental_edge_adjacency
                         )
             edge_coords += self.fundamental_tesselation_vecs
-            assert self.num_fundamental_edges==edge_coords.shape[0]
         else:
-            raise ValueError('Unsupported representation')
+            raise ValueError(
+                f'Allowed options for edge_rep are `cropped` and `fundamental`'
+            )
 
-        edge_lengths = self._edge_lengths_from_coords(edge_coords)
+        edge_vecs = edge_coords[:,3:] - edge_coords[:,:3]
 
-        if repr=='reduced':
-            self.reduced_edge_lengths = edge_lengths
-        elif repr=='transformed':
-            self.transformed_edge_lengths = edge_lengths
-        elif repr=='fundamental':
-            self.fundamental_edge_lengths = edge_lengths
+        if coords=='reduced':
+            pass
+        elif coords=='transformed':
+            edge_vecs = self.transform_coordinates(edge_vecs)
+        else:
+            raise ValueError(
+                f'Allowed options for coords are `reduced` and `transformed`'
+            )
+
+        edge_lengths = np.linalg.norm(edge_vecs, axis=1)
 
         return edge_lengths
     
@@ -887,7 +878,6 @@ class Lattice:
         if repr=='reduced':
             positions = self.reduced_node_coordinates
         elif repr=='transformed':
-            self.calculate_transformed_coordinates()
             positions = self.transformed_node_coordinates
         else:
             raise ValueError('`repr` has to be `reduced` or `transformed`')
@@ -905,16 +895,15 @@ class Lattice:
         return distances, np.column_stack(indices)
 
     def calculate_node_types(self) -> Dict[str, Set]:
-        """
-        Calculate types of nodes from reduced representation
+        """Calculate types of nodes from reduced representation
 
-        Returns a dictionary with sets of 
-            - corner nodes (3 d.o.f. lie on UC boundary)
-            - edge nodes (2 d.o.f. lie on UC boundary)
-            - face nodes (1 d.o.f. lies on UC boundary)
-            - inner nodes (no d.o.f lie on UC boundary)
+        Returns:
+            Dict[str, Set]: a dictionary with sets of 
+                - corner_nodes (3 d.o.f. lie on UC boundary)
+                - edge_nodes (2 d.o.f. lie on UC boundary)
+                - face_nodes (1 d.o.f. lies on UC boundary)
+                - inner_nodes (no d.o.f lie on UC boundary)
         """
-        self.verify_num_nodes_edges()
         nodes = self.reduced_node_coordinates
 
         coords_on_bnds = (np.sum(np.abs(nodes)<self.TOL_DIST, axis=1)
@@ -946,8 +935,7 @@ class Lattice:
             edges, return_counts=True
             )
         node_connectivity[connected_node_nums] = connectivity
-        self.nodal_connectivity = node_connectivity
-        return self.nodal_connectivity
+        return node_connectivity
         
     def check_window_conditions(self) -> bool:
         """
@@ -955,18 +943,23 @@ class Lattice:
 
         Check that 
             - minimum reduced node coordinate is 0 and maximum is UC_L (1)
-            - the only boundary nodes are face nodes
+            - the only node types are face nodes and inner nodes
             - the connectivity of these nodes is 1
+            - periodic partners come in pairs
 
         See Also:
             :func:`calculate_node_types`,
-            :func:`calculate_nodal_connectivity`
+            :func:`calculate_nodal_connectivity`,
+            :func:`check_periodic_partners`
         """
         nodes = self.reduced_node_coordinates
         if (np.abs(nodes.min())>self.TOL_DIST
             or np.abs(nodes.max()-self.UC_L)>self.TOL_DIST):
             return False
-        node_types = self.calculate_node_types()
+        if not self.check_periodic_partners():
+            return False
+        # node_types calculated in `check_periodic_partners` call
+        node_types = self.node_types
         if len(node_types['corner_nodes'])>0: 
             return False
         if len(node_types['edge_nodes'])>0:
@@ -977,20 +970,42 @@ class Lattice:
             return False
         return True
 
+    def check_periodic_partners(self) -> bool:
+        node_types = self.calculate_node_types()
+        face_nodes_nums = list(node_types['face_nodes'])
+        face_pts = self.reduced_node_coordinates[face_nodes_nums, :]
+        for view_dim in [0,1,2]:
+            dims = list({0,1,2} - {view_dim})
+            planar_pts = face_pts[:, dims]
+            mask_sides = np.any(
+                (planar_pts<self.TOL_DIST) | (planar_pts>self.UC_L-self.TOL_DIST),
+                axis=1
+            )
+            selected_pts = planar_pts[~mask_sides, :]
+            _, cnts = np.unique(selected_pts, axis=0, return_counts=True)
+            if not np.all(cnts==2):
+                return False
+        return True
+
     def get_periodic_partners(self) -> list:
         """Calculate periodic partners.
 
-        Check is done whether lattice is in a valid window condition.
+        Check is done first whether lattice is in a valid window condition.
 
         Returns:
-            periodic_partners: list of 2-element sets of node numbers
+            list: list of 2-element sets of node numbers
                 of periodic partners
+
+        Examples:
+
+
+        See Also:
+            :func:`check_window_conditions`
         """
-        assert self.check_window_conditions()
-        # node types and nodal connectivity 
-        # have been calculated in the window conditions call
         TOL_PARTNER = 5e-4
         UC_L = self.UC_L
+        assert self.check_window_conditions(), 'Lattice needs to be windowed first. See `create_windowed`'
+        # node types have been calculated in `check_window_conditions` call
         node_types = self.node_types
         nodes = self.reduced_node_coordinates
         edges = self.edge_adjacency
@@ -1002,42 +1017,56 @@ class Lattice:
                 continue
             x = nodes[n, :]
             dim = np.flatnonzero((np.abs(x)<self.TOL_DIST) | (np.abs(x-UC_L)<self.TOL_DIST))
-            assert len(dim)==1
+            if not len(dim)==1:
+                raise PeriodicPartnersError(
+                    'Only 1 d.o.f. of a face node can be on the min/max boundary'
+                )
             dim = dim[0]
             if abs(x[dim])<self.TOL_DIST: 
                 dim_partner = UC_L
             elif abs(x[dim]-UC_L)<self.TOL_DIST:
                 dim_partner = 0
             else:
-                RuntimeError
-            comp_dims = [0,1,2]
-            comp_dims.remove(dim)
+                raise PeriodicPartnersError('This error should never occur')
+            comp_dims = list({0,1,2}-{dim})
             ind_partner = np.flatnonzero(
                             (np.abs(nodes[:,dim] - dim_partner)<self.TOL_DIST)
                             & (np.all(
                                 np.abs(nodes[:, comp_dims] - x[comp_dims])<TOL_PARTNER, 
                                 axis=1))
                             )
-            assert len(ind_partner)==1
+            if not len(ind_partner)==1:
+                raise PeriodicPartnersError(
+                    f'Node number {n} in lattice {self.name}'
+                    ' does not have exactly 1 matching partner'
+                )
             ind_partner = ind_partner[0]
-            periodic_partners.append({n, ind_partner})
-            nodes_already_in.extend([n, ind_partner])
             # Vectors of edges connecting to the periodic partners
-            # have to be colinear - check that
+            # have to be parallel - check that
             unit_vectors = []
             for node_num in [n, ind_partner]:
                 e = edges[np.any(edges==node_num, axis=1), :]
-                assert e.shape==(1,2)
+                if not e.shape==(1,2):
+                    raise PeriodicPartnersError(
+                        f'Node number {node_num} does not have'
+                        ' exactly one connected edge'
+                    )
                 e = e[0,:]
                 v = nodes[e[0], :] - nodes[e[1], :]
                 v = v/np.linalg.norm(v, keepdims=True)
                 unit_vectors.append(v)
-            assert (np.abs(np.dot(unit_vectors[0], unit_vectors[1])) - 1 
-                    < self.TOL_ANGLE)
+            if not (np.abs(np.dot(unit_vectors[0], unit_vectors[1])) - 1 
+                    < self.TOL_ANGLE):
+                raise PeriodicPartnersError(
+                    f'Edges connected to nodes {n}, {ind_partner}'
+                    ' are not parallel'
+                )
+
+            periodic_partners.append({n, ind_partner})
+            nodes_already_in.extend([n, ind_partner])
             
         assert len(nodes_already_in)==len(face_node_nums)
-        self.periodic_partners = periodic_partners
-        return self.periodic_partners
+        return periodic_partners
 
     def _pp_list_to_dict(self, pp_list : list) -> dict:
         """Create a dictionary map for periodic partners"""
@@ -1050,18 +1079,62 @@ class Lattice:
 
 
     def calculate_fundamental_representation(self) -> None:
-        """
-        Calculate the fundamental representation of lattice 
-        which is based on inner nodes and tesselation vectors.
+        """Calculate the fundamental representation of lattice.
 
-        Operates on reduced node - edge adjacency representation
+        The fundamental representation is based on 
+        inner nodes and tesselation vectors.
+
+        Examples:
+
+            >>> nodes = [[0,0.5,0.5],[1,0.5,0.5],[0.5,0,0.5],[0.5,1,0.5],[0.5,0.5,0.5]]
+            >>> edges = [[0,4],[1,4],[2,4],[3,4]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat.calculate_fundamental_representation()
+            >>> lat.node_types
+            {'corner_nodes': set(),
+             'edge_nodes': set(),
+             'face_nodes': {0, 1, 2, 3},
+             'inner_nodes': {4}}
+            >>> lat.fundamental_edge_adjacency
+            [[4 4]
+             [4 4]]
+            >>> lat.fundamental_tesselation_vecs
+            [[0. 0. 0. 1. 0. 0.]
+             [0. 0. 0. 0. 1. 0.]]
+            >>> lat.num_fundamental_edges
+            2
+
+            .. plot::
+
+                import matplotlib.pyplot as plt
+                from utils import plotting
+                from data import Lattice
+                nodes = [[0,0.5,0.5],[1,0.5,0.5],[0.5,0,0.5],[0.5,1,0.5],[0.5,0.5,0.5]]
+                edges = [[0,4],[1,4],[2,4],[3,4]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, ax = plt.subplots(figsize=(3,3))
+                ax = plotting.plot_unit_cell_2d(lat, ax=ax)
+                ax.set_aspect('equal')
+                plt.tight_layout()
+                ax
+
+            We see that this lattice has one `inner` node (4), and 
+            two fundamental edges:
+                - 4 --> 4 + [1 0 0] (horizontal edge connecting node 4 \
+                    to its tesselation by vector (1,0,0))
+                - 4 --> 4 + [0 1 0] (vertical edge connecting node 4 \
+                    to its tesselation by vector (0,1,0))
+
         """
         pp_list = self.get_periodic_partners()
         pp_dict = self._pp_list_to_dict(pp_list)
-        # node types were calculated in get_periodic_partners call
+        # node types were calculated in `get_periodic_partners` call
         node_types = self.node_types
         inner_nodes = node_types['inner_nodes']
-        assert len(inner_nodes)>0
+        if len(inner_nodes)<1:
+            raise RuntimeError(
+                'UC representation must contain at least 1 node of inner type'
+            )
         edges = self.edge_adjacency
         nodes = self.reduced_node_coordinates
 
@@ -1100,7 +1173,7 @@ class Lattice:
                     
                     ntrials += 1
                     p_loc = partner
-                    assert ntrials<=10 # avoid hanging loop
+                    assert ntrials<=20 # avoid hanging while loop
 
                 # Use p_loc in the edge adjacency. 
                 # Together with loc_t_vec they set edge coordinates
@@ -1109,18 +1182,19 @@ class Lattice:
             new_edges.append(loc_edge)
             t_vecs.append(np.concatenate(loc_t_vecs))
         
-        new_edges = np.row_stack(new_edges)
+        fund_adjacency = np.row_stack(new_edges)
         t_vecs = np.row_stack(t_vecs)
         # reduce t_vecs to zero first 3 columns
-        t_0 = np.copy(t_vecs[:,:3])
-        t_vecs[:,:3] -= t_0
-        t_vecs[:,3:] -= t_0
-        assert set(new_edges.flatten())==inner_nodes
-        self.fundamental_edge_adjacency = new_edges
+        t_vecs = t_vecs - np.column_stack([t_vecs[:,:3], t_vecs[:,:3]])
+        # all nodes in new_edges must be inner nodes
+        assert set(fund_adjacency.flatten())==inner_nodes
+        
+        self.fundamental_edge_adjacency = fund_adjacency
         self.fundamental_tesselation_vecs = t_vecs
-        self.num_fundamental_edges = self.fundamental_edge_adjacency.shape[0]
 
-    def crop_unit_cell(self) -> None:
+    def crop_unit_cell(
+        self, reduced_edge_coords: Optional[npt.NDArray] = None
+    ) -> None:
         """Crop lattice to fit within unit cell window.
 
         Examples:
@@ -1158,9 +1232,12 @@ class Lattice:
         """
         UC_L = self.UC_L
 
-        if not hasattr(self, 'reduced_edge_coordinates'):
-            self.update_representations('reduced_adjacency')
-        edge_coords = self.reduced_edge_coordinates
+        if not isinstance(reduced_edge_coords, np.ndarray):
+            edge_coords = self._node_adj_to_ec(
+                self.reduced_node_coordinates, self.edge_adjacency
+            )
+        else:
+            edge_coords = reduced_edge_coords
 
         for dim in range(3):
             new_edges = []
@@ -1196,8 +1273,7 @@ class Lattice:
 
             edge_coords = np.row_stack(new_edges)
         
-        self.reduced_edge_coordinates = edge_coords
-        self.update_representations(basis='reduced_edge_coords')
+        self.update_representations(edge_coords=edge_coords)
         self.remove_duplicate_edges_nodes()
 
     def merge_colinear_edges(self) -> None:
@@ -1276,27 +1352,11 @@ class Lattice:
             assert nodes_deleted<1000  # Avoid hanging while loop
         
         # Delete disconnected nodes
-        self.reduced_edge_coordinates = self._node_adj_to_ec(
+        reduced_edge_coordinates = self._node_adj_to_ec(
             self.reduced_node_coordinates, edges
         )
-        self.update_representations(basis='reduced_edge_coords')
+        self.update_representations(edge_coords=reduced_edge_coordinates)
         
-    def check_periodic_partners(self) -> bool:
-        node_types = self.calculate_node_types()
-        face_nodes_nums = list(node_types['face_nodes'])
-        face_pts = self.reduced_node_coordinates[face_nodes_nums, :]
-        for view_dim in [0,1,2]:
-            dims = list({0,1,2} - {view_dim})
-            planar_pts = face_pts[:, dims]
-            mask_sides = np.any(
-                (planar_pts<self.TOL_DIST) | (planar_pts>self.UC_L-self.TOL_DIST),
-                axis=1
-            )
-            selected_pts = planar_pts[~mask_sides, :]
-            _, cnts = np.unique(selected_pts, axis=0, return_counts=True)
-            if not np.all(cnts==2):
-                return False
-        return True
 
     def obtain_shift_vector(
         self, max_num_attempts: int = 10, min_edge_length: float = 5e-3, 
@@ -1323,7 +1383,6 @@ class Lattice:
             temp_lattice.reduced_node_coordinates = (
                 temp_lattice.reduced_node_coordinates + shift_vector
             )
-            temp_lattice.update_representations(basis='reduced_adjacency')
             temp_lattice.crop_unit_cell()
             temp_lattice.merge_colinear_edges()
             nodes_on_edges = temp_lattice.find_nodes_on_edges()
@@ -1333,7 +1392,6 @@ class Lattice:
             if len(edge_intersections)>0:
                 temp_lattice.split_edges_by_points(edge_intersections)
             window_satisfied = temp_lattice.check_window_conditions()
-            window_satisfied = window_satisfied and temp_lattice.check_periodic_partners()
             # if window_satisfied:
             #     _ = temp_lattice.get_periodic_partners()
             shortest_edge = temp_lattice.calculate_edge_lengths().min()
@@ -1349,7 +1407,7 @@ class Lattice:
             raise WindowingException(f'Failed to obtain a window for lattice {self.name}')
 
 
-    def create_windowed(self) -> "Lattice":
+    def create_windowed(self, num_attempts: int = 10) -> "Lattice":
         """Create a windowed representation of a lattice
 
         Returns:
@@ -1383,7 +1441,7 @@ class Lattice:
                 fig.tight_layout()
                 axes
         """
-        shift_vector = self.obtain_shift_vector()
+        shift_vector = self.obtain_shift_vector(max_num_attempts=num_attempts)
         newlat = Lattice(**self.to_dict())
         newlat.reduced_node_coordinates += shift_vector
         newlat.crop_unit_cell()
@@ -1397,78 +1455,200 @@ class Lattice:
         assert newlat.check_window_conditions()
         return newlat
 
+    def apply_nodal_imperfections(self, dr_mag: float, kind: str) -> "Lattice":
+        """Displace inner nodes using the fundamental representation.
 
-    def calculate_fundamental_representation(self) -> None:
-        """
-        Calculate the fundamental representation of lattice 
-        which is based on inner nodes and tesselation vectors.
+        Args:
+            dr_mag (float): magnitude of perturbation
+            kind (str): 'sphere_surf' or 'sphere_solid' or 'gaussian'
 
-        Operates on reduced node - edge adjacency representation
+        Returns:
+            Lattice: modified lattice with nodal imperfections
+
+        Examples:
+
+            >>> nodes = [[0.3,0.3,0.5],[0.7,0.3,0.5],[0.3,0.7,0.5],[0.7,0.7,0.5]]
+            >>> fundamental_edge_adjacency=[[0,1],[1,3],[2,3],[0,2],[2,0],[3,1],[1,0],[3,2]]
+            >>> tess_vecs = [[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],
+            >>>              [0,0,0,0,1,0],[0,0,0,0,1,0],[0,0,0,1,0,0],[0,0,0,1,0,0]]
+            >>> lat = Lattice(
+            >>>     nodal_positions=nodes,
+            >>>     fundamental_edge_adjacency=fundamental_edge_adjacency,
+            >>>     fundamental_tesselation_vecs=tess_vecs
+            >>> )
+            >>> lat.crop_unit_cell()
+            >>> lat_imp = lat.apply_nodal_imperfections(0.1, 'sphere_surf')
+
+            .. plot::
+
+                import matplotlib.pyplot as plt
+                from utils import plotting
+                from data import Lattice
+                nodes = [[0.3,0.3,0.5],[0.7,0.3,0.5],[0.3,0.7,0.5],[0.7,0.7,0.5]]
+                fundamental_edge_adjacency=[[0,1],[1,3],[2,3],[0,2],[2,0],[3,1],[1,0],[3,2]]
+                tess_vecs = [[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],
+                             [0,0,0,0,1,0],[0,0,0,0,1,0],[0,0,0,1,0,0],[0,0,0,1,0,0]]
+                lat = Lattice(
+                    nodal_positions=nodes,
+                    fundamental_edge_adjacency=fundamental_edge_adjacency,
+                    fundamental_tesselation_vecs=tess_vecs
+                )
+                lat.crop_unit_cell()
+                fig, axes = plt.subplots(ncols=2, figsize=(6,3), sharey=True)
+                plotting.plot_unit_cell_2d(lat, ax=axes[0])
+                lat_imp = lat.apply_nodal_imperfections(0.1, 'sphere_surf')
+                plotting.plot_unit_cell_2d(lat_imp, ax=axes[1])
+                for ax in axes: ax.set_aspect('equal')
+                axes[1].set_ylabel('')
+                fig.tight_layout()
+                axes
+                
+        See Also:
+            :func:`calculate_fundamental_representation`
         """
-        pp_list = self.get_periodic_partners()
-        pp_dict = self._pp_list_to_dict(pp_list)
-        # node types were calculated in get_periodic_partners call
-        node_types = self.node_types
-        inner_nodes = node_types['inner_nodes']
-        assert len(inner_nodes)>0
-        edges = self.edge_adjacency
+        self.calculate_fundamental_representation()
+        nodes_to_perturb = np.unique(self.fundamental_edge_adjacency)
+        num_nodes_to_perturb = len(nodes_to_perturb)
+            
+        if kind=='sphere_surf':
+            dr = np.random.randn(num_nodes_to_perturb, 3)
+            dr = dr / np.linalg.norm(dr, axis=1, keepdims=True)
+            dr = dr * dr_mag
+        elif kind=='sphere_solid':
+            phi = 2*np.pi*np.random.rand(num_nodes_to_perturb)
+            costheta = 2*(np.random.rand(num_nodes_to_perturb) - 0.5)
+            u = np.random.rand(num_nodes_to_perturb)
+            theta = np.arccos( costheta )
+            r = dr_mag * u**(1/3)
+            x = r * np.sin(theta) * np.cos(phi)
+            y = r * np.sin(theta) * np.sin(phi)
+            z = r * np.cos(theta)
+            dr = np.column_stack((x,y,z))
+        elif kind=='gaussian':
+            dr = np.random.randn(num_nodes_to_perturb, 3)
+            dr = dr * dr_mag
+        else: 
+            raise ValueError(f"Value {kind} is not allowed for argument 'kind'")
+
+        nodal_positions = np.copy(self.reduced_node_coordinates)
+        nodal_positions[nodes_to_perturb] += dr
+        perturbed_lattice = Lattice(
+            nodal_positions=nodal_positions,
+            fundamental_edge_adjacency=self.fundamental_edge_adjacency,
+            fundamental_tesselation_vecs=self.fundamental_tesselation_vecs
+        )
+        for attr in self.ATTRS_TO_COPY:
+            if hasattr(self, attr):
+                setattr(perturbed_lattice, attr, getattr(self, attr))
+        perturbed_lattice.crop_unit_cell()  
+        return perturbed_lattice
+
+
+    def refine_mesh(self, min_length: float, min_div: int) -> "Lattice":
+        """
+        Split edges into at least 'min_div' segments per edge
+        and with each segment having length at least 'min_length'
+        """
         nodes = self.reduced_node_coordinates
-
-        used_edge_indices = []
+        edges = self.edge_adjacency
+        new_nodes = []
         new_edges = []
-        t_vecs = []
+        new_nodes.extend(nodes)
         for i_edge, e in enumerate(edges):
-            if i_edge in used_edge_indices: 
-                # every edge is transcribed just once
-                continue 
-            used_edge_indices.append(i_edge) 
-            loc_edge = []
-            loc_t_vecs = [np.zeros(3), np.zeros(3)]
-            for i_point, point_num in enumerate(e):
-                p_loc = point_num
-                ntrials = 0
-                # backtrack the point all the way until we hit an inner node
-                while not p_loc in inner_nodes:    
-                    # partner is either connected to p_loc 
-                    # by unused edge (priority) or it is periodic partner
-                    conn_edge_ind = np.flatnonzero(
-                                        np.any(edges==p_loc, axis=1)
-                                        )
-                    assert len(conn_edge_ind)==1
-                    conn_edge_ind = conn_edge_ind[0]
-                    if not conn_edge_ind in used_edge_indices:
-                        partner_edge = edges[conn_edge_ind]
-                        partner = (set(partner_edge) - {p_loc}).pop()
-                        used_edge_indices.append(conn_edge_ind) 
-                    else: 
-                        # pick periodic partner and 
-                        # need to add to translation vector
-                        partner = pp_dict[p_loc]
-                        t = nodes[p_loc, :] - nodes[partner, :] 
-                        loc_t_vecs[i_point] += t
-                    
-                    ntrials += 1
-                    p_loc = partner
-                    assert ntrials<=10 # avoid hanging loop
-
-                # Use p_loc in the edge adjacency. 
-                # Together with loc_t_vec they set edge coordinates
-                loc_edge.append(p_loc)
-
-            new_edges.append(loc_edge)
-            t_vecs.append(np.concatenate(loc_t_vecs))
+            n0 = e[0]
+            x0 = nodes[n0]
+            e_vec = nodes[e[1]] - nodes[e[0]]
+            e_norm = np.linalg.norm(e_vec)
+            e_unit = e_vec/e_norm
+            num_div = max(min_div, ceil(e_norm/min_length))
+            L_step = e_norm/num_div
+            for i in range(num_div-1):
+                x1 = x0 + e_unit*L_step
+                n1 = len(new_nodes)
+                new_nodes.append(x1)
+                new_edges.append([n0,n1])
+                n0 = n1
+                x0 = x1
+            x1 = nodes[e[1]]
+            n1 = e[1]
+            new_edges.append([n0,n1])
         
-        new_edges = np.row_stack(new_edges)
-        t_vecs = np.row_stack(t_vecs)
-        # reduce t_vecs to zero first 3 columns
-        t_0 = np.copy(t_vecs[:,:3])
-        t_vecs[:,:3] -= t_0
-        t_vecs[:,3:] -= t_0
-        assert set(new_edges.flatten())==inner_nodes
-        self.fundamental_edge_adjacency = new_edges
-        self.fundamental_tesselation_vecs = t_vecs
-        self.num_fundamental_edges = self.fundamental_edge_adjacency.shape[0]
+        nodal_positions = np.row_stack(new_nodes)
+        edge_adjacency = np.row_stack(new_edges)
 
+        refined_lattice = Lattice(
+            nodal_positions=nodal_positions,
+            edge_adjacency=edge_adjacency
+        )
+        for attr in self.ATTRS_TO_COPY:
+            if hasattr(self, attr):
+                setattr(refined_lattice, attr, getattr(self, attr))
+
+        return refined_lattice
+
+    def create_tesselated(self, nx: int, ny: int, nz: int) -> "Lattice":
+        """Create periodic tesselation of the lattice
+
+        Args:
+            nx (int): number of times to repeat in x-direction
+            ny (int): number of times to repeat in y-direction
+            nz (int): number of times to repeat in z-direction
+
+        Returns:
+            Lattice: tesselated lattice
+
+        Examples:
+
+            >>> nodes = [[0.2,0.3,0],[0.2,0,0],[1,0.3,0],[0.2,1,0],[0,0.3,0]]
+            >>> edges = [[0,1],[0,2],[0,3],[0,4]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lt = lat.create_tesselated(2,2,1)
+
+            .. plot::
+
+                import matplotlib.pyplot as plt
+                from data import Lattice
+                from utils import plotting
+                nodes = [[0.2,0.3,0],[0.2,0,0],[1,0.3,0],[0.2,1,0],[0,0.3,0]]
+                edges = [[0,1],[0,2],[0,3],[0,4]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, axes = plt.subplots(ncols=2, figsize=(6,3))
+                plotting.plot_unit_cell_2d(lat, ax=axes[0])
+                lt = lat.create_tesselated(2,2,1)
+                plotting.plot_unit_cell_2d(lt, ax=axes[1])
+                for ax in axes: ax.set_aspect('equal'); 
+                fig.tight_layout()
+                axes
+
+        """
+        edge_coords = self._node_adj_to_ec(
+            self.reduced_node_coordinates, self.edge_adjacency
+        )
+        num_reps = [nx, ny, nz]
+        for dim in [0,1,2]:
+            new_edge_coords = []
+            for i_rep in range(num_reps[dim]):
+                ec = np.copy(edge_coords)
+                ec[:, dim] += i_rep*self.UC_L
+                ec[:, 3+dim] += i_rep*self.UC_L
+                new_edge_coords.extend(ec)
+            edge_coords = np.row_stack(new_edge_coords)
+        
+        # rescale coordinates to keep unit cell the same
+        edge_coords = edge_coords/np.concatenate((num_reps,num_reps))
+        new_lattice_constants = (
+            self.lattice_constants*np.concatenate((num_reps, np.ones(3)))
+        )
+
+        tesselated_lattice = Lattice(
+            edge_coordinates=edge_coords
+        )
+        for attr in self.ATTRS_TO_COPY:
+            if hasattr(self, attr):
+                setattr(tesselated_lattice, attr, getattr(self, attr))
+        tesselated_lattice.lattice_constants = new_lattice_constants
+        tesselated_lattice.merge_colinear_edges()
+        return tesselated_lattice
 
     def to_dict(self) -> dict:
         """Obtain a dictionary with the reduced representation."""
@@ -1485,4 +1665,10 @@ class Lattice:
 
 
 class WindowingException(Exception):
+    pass
+
+class PeriodicPartnersError(Exception):
+    pass
+
+class AttrinuteError(Exception):
     pass
