@@ -96,17 +96,7 @@
 <p>Takes in keyword-only arguments.</p>
 <p class="rubric">Examples</p>
 <dl>
-<dt>Four ways of initialisation.</dt><dd><ul class="simple">
-<li><p>by unpacking the catalogue dictionary</p></li>
-</ul>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">data</span> <span class="kn">import</span> <span class="n">Lattice</span><span class="p">,</span> <span class="n">Catalogue</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">cat</span> <span class="o">=</span> <span class="n">Catalogue</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;Unit_Cell_Catalog.txt&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="o">**</span><span class="n">cat</span><span class="o">.</span><span class="n">get_unit_cell</span><span class="p">(</span><span class="n">cat</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
-<span class="go">{&#39;name&#39;: &#39;cub_Z06.0_E1&#39;, &#39;num_nodes&#39;: 8, &#39;num_edges&#39;: 12}</span>
-</pre></div>
-</div>
-<ul class="simple">
+<dt>Three ways of initialisation:</dt><dd><ul class="simple">
 <li><p>by specifying node coordinates and edge adjacency</p></li>
 </ul>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
@@ -153,6 +143,14 @@
 </div>
 </dd>
 </dl>
+<p>Lattice can also be initialised by directly                 unpacking the catalogue dictionary</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">data</span> <span class="kn">import</span> <span class="n">Lattice</span><span class="p">,</span> <span class="n">Catalogue</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cat</span> <span class="o">=</span> <span class="n">Catalogue</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;Unit_Cell_Catalog.txt&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="o">**</span><span class="n">cat</span><span class="o">.</span><span class="n">get_unit_cell</span><span class="p">(</span><span class="n">cat</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
+<span class="go">{&#39;name&#39;: &#39;cub_Z06.0_E1&#39;, &#39;num_nodes&#39;: 8, &#39;num_edges&#39;: 12}</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="py method">
@@ -286,14 +284,13 @@ inner nodes and tesselation vectors.</p>
 <figure class="align-default">
 <img alt="_images/data-2.png" class="plot-directive" src="_images/data-2.png" />
 </figure>
-<p>We see that this lattice has one <cite>inner</cite> node (4), and
-two fundamental edges:</p>
-<blockquote>
-<div><ul class="simple">
+<dl class="simple">
+<dt>We see that this lattice has one <cite>inner</cite> node (4), and                 two fundamental edges:</dt><dd><ul class="simple">
 <li><p>4 –&gt; 4 + [1 0 0] (horizontal edge connecting node 4                     to its tesselation by vector (1,0,0))</p></li>
 <li><p>4 –&gt; 4 + [0 1 0] (vertical edge connecting node 4                     to its tesselation by vector (0,1,0))</p></li>
 </ul>
-</div></blockquote>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -521,7 +518,7 @@ All nodal coordinates which are very close to 0 or UC_L
 
 <dl class="py method">
 <dt class="sig sig-object py" id="data.Lattice.get_periodic_partners">
-<span class="sig-name descname"><span class="pre">get_periodic_partners</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span></span></span><a class="headerlink" href="#data.Lattice.get_periodic_partners" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">get_periodic_partners</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Set</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.get_periodic_partners" title="Permalink to this definition"></a></dt>
 <dd><p>Calculate periodic partners.</p>
 <p>Check is done first whether lattice is in a valid window condition.</p>
 <dl class="field-list simple">
@@ -536,7 +533,19 @@ All nodal coordinates which are very close to 0 or UC_L
 <dd class="field-even"><p>list</p>
 </dd>
 </dl>
-<p>Examples:</p>
+<p class="rubric">Examples</p>
+<p>Nodes {0,1} and {2,3} in the lattice below are periodic partners.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.5</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mf">0.5</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">4</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">4</span><span class="p">],[</span><span class="mi">2</span><span class="p">,</span><span class="mi">4</span><span class="p">],[</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">(</span><span class="n">nodal_positions</span><span class="o">=</span><span class="n">nodes</span><span class="p">,</span> <span class="n">edge_adjacency</span><span class="o">=</span><span class="n">edges</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span><span class="o">.</span><span class="n">get_periodic_partners</span><span class="p">()</span>
+<span class="go">[{0, 1}, {2, 3}]</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//data-8.py">Source code</a>, <a class="reference external" href=".//data-8.png">png</a>, <a class="reference external" href=".//data-8.hires.png">hires.png</a>, <a class="reference external" href=".//data-8.pdf">pdf</a>)</p>
+<figure class="align-default">
+<img alt="_images/data-8.png" class="plot-directive" src="_images/data-8.png" />
+</figure>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
 <p><a class="reference internal" href="#data.Lattice.check_window_conditions" title="data.Lattice.check_window_conditions"><code class="xref py py-func docutils literal notranslate"><span class="pre">check_window_conditions()</span></code></a></p>
@@ -568,9 +577,9 @@ and similar angle between two unit vectors along the edges.</p>
 <span class="go">{&#39;num_nodes&#39;: 2, &#39;num_edges&#39;: 1}</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-8.py">Source code</a>, <a class="reference external" href=".//data-8.png">png</a>, <a class="reference external" href=".//data-8.hires.png">hires.png</a>, <a class="reference external" href=".//data-8.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-9.py">Source code</a>, <a class="reference external" href=".//data-9.png">png</a>, <a class="reference external" href=".//data-9.hires.png">hires.png</a>, <a class="reference external" href=".//data-9.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-8.png" class="plot-directive" src="_images/data-8.png" />
+<img alt="_images/data-9.png" class="plot-directive" src="_images/data-9.png" />
 </figure>
 </dd></dl>
 
@@ -657,9 +666,9 @@ in point_array.</p>
 <span class="go">{&#39;num_nodes&#39;: 3, &#39;num_edges&#39;: 2}</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-9.py">Source code</a>, <a class="reference external" href=".//data-9.png">png</a>, <a class="reference external" href=".//data-9.hires.png">hires.png</a>, <a class="reference external" href=".//data-9.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-10.py">Source code</a>, <a class="reference external" href=".//data-10.png">png</a>, <a class="reference external" href=".//data-10.hires.png">hires.png</a>, <a class="reference external" href=".//data-10.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-9.png" class="plot-directive" src="_images/data-9.png" />
+<img alt="_images/data-10.png" class="plot-directive" src="_images/data-10.png" />
 </figure>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">nodes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]]</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">edges</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]]</span>
@@ -672,9 +681,9 @@ in point_array.</p>
 <span class="go">{&#39;num_nodes&#39;: 4, &#39;num_edges&#39;: 4}</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//data-10.py">Source code</a>, <a class="reference external" href=".//data-10.png">png</a>, <a class="reference external" href=".//data-10.hires.png">hires.png</a>, <a class="reference external" href=".//data-10.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//data-11.py">Source code</a>, <a class="reference external" href=".//data-11.png">png</a>, <a class="reference external" href=".//data-11.hires.png">hires.png</a>, <a class="reference external" href=".//data-11.pdf">pdf</a>)</p>
 <figure class="align-default">
-<img alt="_images/data-10.png" class="plot-directive" src="_images/data-10.png" />
+<img alt="_images/data-11.png" class="plot-directive" src="_images/data-11.png" />
 </figure>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>

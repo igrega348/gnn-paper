@@ -46,15 +46,7 @@ class Lattice:
 
         Examples:
         
-            Four ways of initialisation.
-                - by unpacking the catalogue dictionary
-                
-                >>> from data import Lattice, Catalogue
-                >>> cat = Catalogue.from_file('Unit_Cell_Catalog.txt', 1)
-                >>> lat = Lattice(**cat.get_unit_cell(cat.names[0]))
-                >>> lat
-                {'name': 'cub_Z06.0_E1', 'num_nodes': 8, 'num_edges': 12}
-
+            Three ways of initialisation:
                 - by specifying node coordinates and edge adjacency
 
                 >>> import numpy as np
@@ -93,6 +85,15 @@ class Lattice:
                 >>> lat.crop_unit_cell()
                 >>> lat
                 {'num_nodes': 7, 'num_edges': 6}
+
+            Lattice can also be initialised by directly \
+                unpacking the catalogue dictionary
+                
+                >>> from data import Lattice, Catalogue
+                >>> cat = Catalogue.from_file('Unit_Cell_Catalog.txt', 1)
+                >>> lat = Lattice(**cat.get_unit_cell(cat.names[0]))
+                >>> lat
+                {'name': 'cub_Z06.0_E1', 'num_nodes': 8, 'num_edges': 12}
 
                 
 
@@ -258,8 +259,7 @@ class Lattice:
         return uc_volume
 
     def get_transform_matrix(self) -> npt.NDArray[np.float_]:
-        """
-        Assemble transformation matrix from crystal data.
+        """Assemble transformation matrix from crystal data.
 
         Formula is in the Appendix to the PNAS paper:
         Lumpe, T. S. and Stankovic, T. (2020)
@@ -276,17 +276,17 @@ class Lattice:
         omega = self.calculate_UC_volume()
         
         transform_mat = np.zeros((3,3))
-        transform_mat[0][0] = a
-        transform_mat[0][1] = b * np.cos(gamma)
-        transform_mat[0][2] = c * np.cos(beta)
-        transform_mat[1][0] = 0
-        transform_mat[1][1] = b * np.sin(gamma)
-        transform_mat[1][2] = c * ((np.cos(alpha) 
+        transform_mat[0,0] = a
+        transform_mat[0,1] = b * np.cos(gamma)
+        transform_mat[0,2] = c * np.cos(beta)
+        transform_mat[1,0] = 0
+        transform_mat[1,1] = b * np.sin(gamma)
+        transform_mat[1,2] = c * ((np.cos(alpha) 
                                 - (np.cos(beta)*np.cos(gamma)))
                                 /(np.sin(gamma)))
-        transform_mat[2][0] = 0
-        transform_mat[2][1] = 0
-        transform_mat[2][2] = ( omega / ( a*b*np.sin(gamma) ) )
+        transform_mat[2,0] = 0
+        transform_mat[2,1] = 0
+        transform_mat[2,2] = ( omega / ( a*b*np.sin(gamma) ) )
 
         return transform_mat
 
@@ -987,7 +987,7 @@ class Lattice:
                 return False
         return True
 
-    def get_periodic_partners(self) -> list:
+    def get_periodic_partners(self) -> List[Set]:
         """Calculate periodic partners.
 
         Check is done first whether lattice is in a valid window condition.
@@ -998,6 +998,27 @@ class Lattice:
 
         Examples:
 
+            Nodes {0,1} and {2,3} in the lattice below are periodic partners.
+
+            >>> nodes = [[0,0.5,0.5],[1,0.5,0.5],[0.5,0,0.5],[0.5,1,0.5],[0.5,0.5,0.5]]
+            >>> edges = [[0,4],[1,4],[2,4],[3,4]]
+            >>> lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+            >>> lat.get_periodic_partners()
+            [{0, 1}, {2, 3}]
+
+            .. plot::
+
+                import matplotlib.pyplot as plt
+                from utils import plotting
+                from data import Lattice
+                nodes = [[0,0.5,0.5],[1,0.5,0.5],[0.5,0,0.5],[0.5,1,0.5],[0.5,0.5,0.5]]
+                edges = [[0,4],[1,4],[2,4],[3,4]]
+                lat = Lattice(nodal_positions=nodes, edge_adjacency=edges)
+                fig, ax = plt.subplots(figsize=(3,3))
+                ax = plotting.plot_unit_cell_2d(lat, ax=ax)
+                ax.set_aspect('equal')
+                plt.tight_layout()
+                ax
 
         See Also:
             :func:`check_window_conditions`
@@ -1118,8 +1139,8 @@ class Lattice:
                 plt.tight_layout()
                 ax
 
-            We see that this lattice has one `inner` node (4), and 
-            two fundamental edges:
+            We see that this lattice has one `inner` node (4), and \
+                two fundamental edges:
                 - 4 --> 4 + [1 0 0] (horizontal edge connecting node 4 \
                     to its tesselation by vector (1,0,0))
                 - 4 --> 4 + [0 1 0] (vertical edge connecting node 4 \
