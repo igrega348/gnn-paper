@@ -214,7 +214,7 @@ def plotly_unit_cell_3d(
 
     fig.add_scatter3d(
         x=x, y=y, z=z,
-        marker={'color':colors},
+        marker={'color':colors,'size':6},
         mode=mode,
         text=node_numbers,
         textfont={'size':14},

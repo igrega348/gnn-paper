@@ -31,7 +31,8 @@ class Lattice:
     rel_dens: float
     edge_radii: npt.NDArray[np.float_]    
     ATTRS_TO_COPY: List = ['name', 'lattice_constants', 'UC_L']
-
+    INIT_FORMAT: str = 'Lattice can be initialised in one of 3 ways.'\
+                        ' No extra arguments can be passed. See documentation.'
 
     def __init__(
             self,*, name=None, lattice_constants=None,
@@ -137,9 +138,9 @@ class Lattice:
 
         if (isinstance(nodal_positions, Iterable)
             and isinstance(edge_adjacency, Iterable)):
-            assert edge_coordinates is None
-            assert fundamental_edge_adjacency is None
-            assert fundamental_tesselation_vecs is None
+            assert edge_coordinates is None, self.INIT_FORMAT
+            assert fundamental_edge_adjacency is None, self.INIT_FORMAT
+            assert fundamental_tesselation_vecs is None, self.INIT_FORMAT
             nodal_positions = np.atleast_2d(nodal_positions).astype(np.float_)
             edges = np.atleast_2d(edge_adjacency)
             assert nodal_positions.shape[1]==3
@@ -153,8 +154,8 @@ class Lattice:
             self.edge_adjacency = edges
         elif (isinstance(nodal_positions, Iterable)
             and isinstance(fundamental_edge_adjacency, Iterable)):
-            assert edge_coordinates is None
-            assert edge_adjacency is None
+            assert edge_coordinates is None, self.INIT_FORMAT
+            assert edge_adjacency is None, self.INIT_FORMAT
             assert isinstance(fundamental_tesselation_vecs, Iterable)
 
             nodal_positions = np.atleast_2d(nodal_positions).astype(np.float_)
@@ -169,8 +170,8 @@ class Lattice:
             edge_coords += fundamental_tesselation_vecs
             self.update_representations(edge_coords=edge_coords)
         elif isinstance(edge_coordinates, Iterable):
-            assert nodal_positions is None
-            assert edge_adjacency is None
+            assert nodal_positions is None, self.INIT_FORMAT
+            assert edge_adjacency is None, self.INIT_FORMAT
             edge_coordinates = np.atleast_2d(edge_coordinates)
             assert edge_coordinates.shape[1]==6
             self.update_representations(edge_coords=edge_coordinates)
@@ -205,8 +206,11 @@ class Lattice:
 
     @property
     def num_fundamental_nodes(self) -> int:
-        uq_inds = np.unique(self.fundamental_edge_adjacency)
-        return len(uq_inds)
+        if not hasattr(self, 'fundamental_edge_adjacency'):
+            raise AttributeError('Calculate fundamental representation first')
+        else:
+            uq_inds = np.unique(self.fundamental_edge_adjacency)
+            return len(uq_inds)
 
 
     @property
@@ -982,6 +986,8 @@ class Lattice:
                 axis=1
             )
             selected_pts = planar_pts[~mask_sides, :]
+            # adding rounding for stability
+            selected_pts = selected_pts.round(4)
             _, cnts = np.unique(selected_pts, axis=0, return_counts=True)
             if not np.all(cnts==2):
                 return False
@@ -1025,7 +1031,10 @@ class Lattice:
         """
         TOL_PARTNER = 5e-4
         UC_L = self.UC_L
-        assert self.check_window_conditions(), 'Lattice needs to be windowed first. See `create_windowed`'
+        if not self.check_window_conditions():
+            raise WindowingError(
+                'Lattice needs to be windowed first. See `create_windowed`'
+            )
         # node types have been calculated in `check_window_conditions` call
         node_types = self.node_types
         nodes = self.reduced_node_coordinates
@@ -1425,7 +1434,7 @@ class Lattice:
             else:
                 return shift_vector
         else:
-            raise WindowingException(f'Failed to obtain a window for lattice {self.name}')
+            raise WindowingError(f'Failed to obtain a window for lattice {self.name}')
 
 
     def create_windowed(self, num_attempts: int = 10) -> "Lattice":
@@ -1463,7 +1472,7 @@ class Lattice:
                 axes
         """
         shift_vector = self.obtain_shift_vector(max_num_attempts=num_attempts)
-        newlat = Lattice(**self.to_dict())
+        newlat = Lattice(**self.to_dict(fundamental=False))
         newlat.reduced_node_coordinates += shift_vector
         newlat.crop_unit_cell()
         newlat.merge_colinear_edges()
@@ -1671,21 +1680,25 @@ class Lattice:
         tesselated_lattice.merge_colinear_edges()
         return tesselated_lattice
 
-    def to_dict(self) -> dict:
+    def to_dict(self, fundamental: bool = True) -> dict:
         """Obtain a dictionary with the reduced representation."""
         d = dict()
-        if hasattr(self, 'name'):
-            d['name'] = self.name
-        if hasattr(self, 'lattice_constants'):
-            d['lattice_constants'] = self.lattice_constants
+        for attr in self.ATTRS_TO_COPY:
+            if hasattr(self, attr):
+                d[attr] = getattr(self, attr)
         d['reduced_node_coordinates'] = self.reduced_node_coordinates
         d['edge_adjacency'] = self.edge_adjacency
+        
+        if hasattr(self, 'fundamental_edge_adjacency') and fundamental:
+            d['fundamental_edge_adjacency'] = self.fundamental_edge_adjacency
+        if hasattr(self, 'fundamental_tesselation_vecs') and fundamental:
+            d['fundamental_tesselation_vecs'] = self.fundamental_tesselation_vecs
         if hasattr(self, 'compliance_tensors'):
             d['compliance_tensors'] = self.compliance_tensors
         return d
 
 
-class WindowingException(Exception):
+class WindowingError(Exception):
     pass
 
 class PeriodicPartnersError(Exception):

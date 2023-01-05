@@ -1,6 +1,6 @@
 from utils import plotting
 from data import Lattice, Catalogue
-from data.lattice import WindowingException
+from data.lattice import WindowingError
 import numpy as np
 from tqdm import tqdm
 from plotly.subplots import make_subplots
@@ -24,7 +24,7 @@ def process_lattice(lat_data):
         lat = lat.create_windowed()
         lat.calculate_fundamental_representation()
         return lat.to_dict()
-    except WindowingException:
+    except WindowingError:
         return {}
 
 

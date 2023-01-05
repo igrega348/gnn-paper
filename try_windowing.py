@@ -1,6 +1,6 @@
 # %%
 from data import Lattice, Catalogue
-from data.lattice import WindowingException
+from data.lattice import WindowingError
 from tqdm import tqdm
 from multiprocessing import Pool
 from random import shuffle
@@ -10,7 +10,7 @@ def try_window(data: dict) -> Tuple:
     lat = Lattice(**data)
     try:
         _, num_attempts = lat.obtain_shift_vector(max_num_attempts=3, return_attempts=True)
-    except WindowingException:
+    except WindowingError:
         num_attempts = float('inf')
 
     return (lat.name, num_attempts)
@@ -20,7 +20,7 @@ def create_window(lat_data: dict) -> dict:
     try:
         newlat = lat.create_windowed()
         return newlat.to_dict()
-    except WindowingException:
+    except WindowingError:
         return {}
 
 def main():

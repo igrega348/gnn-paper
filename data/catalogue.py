@@ -60,6 +60,8 @@ class Catalogue:
     def __getitem__(self, ind: Union[int, slice]):
         if isinstance(ind, int):
             return self.get_unit_cell(self.names[ind])
+        elif isinstance(ind, str):
+            return self.get_unit_cell(ind)
         elif isinstance(ind, slice):
             selected_names = self.names[ind]
             selected_data = {name: self.lines[name] for name in selected_names}
@@ -134,6 +136,8 @@ class Catalogue:
             They can contain also:
                 - `lattice_constants`
                 - `compliance_tensors`
+                - `fundamental_edge_adjacency`
+                - `fundamental_tesselation_vecs`
         """
         data = dict()
 
@@ -155,10 +159,11 @@ class Catalogue:
                 )
                 line = ''
                 for i, x in enumerate(lattice_constants):
-                    line = line + f'{x:.5f}'
+                    line = line + f'{x:.5g}'
                     if i!=5:
                         line = line + ', '
                 lines.append(line)
+                lines.append('')
 
             if 'compliance_tensors' in lat_dict:
                 compliance_tensors = lat_dict['compliance_tensors']
@@ -186,13 +191,31 @@ class Catalogue:
 
             lines.append('Nodal positions:')
             for x,y,z in nodal_positions:
-                lines.append(f'{x:.5f} {y:.5f} {z:.5f}')
+                lines.append(f'{x:.5g} {y:.5g} {z:.5g}')
 
             lines.append('')
+
             lines.append('Bar connectivities:')
             for e in lat_dict['edge_adjacency']:
                 lines.append(f'{int(e[0])} {int(e[1])}')
+
             lines.append('')
+
+            if 'fundamental_edge_adjacency' in lat_dict:
+                assert 'fundamental_tesselation_vecs' in lat_dict
+                
+                lines.append('Fundamental edge adjacency')
+                for e in lat_dict['fundamental_edge_adjacency']:
+                    lines.append(f'{int(e[0])} {int(e[1])}')
+
+                lines.append('')
+
+                lines.append('Fundamental tesselation vectors')
+                for v in lat_dict['fundamental_tesselation_vecs']:
+                    line = ' '.join([f'{x:.5g}' for x in v])
+                    lines.append(line)
+
+                lines.append('')
         
             data.update({name:lines})
 
@@ -216,6 +239,8 @@ class Catalogue:
                 - `compliance_tensors`
                 - `nodal_positions`: nested list of shape (num_nodes, 3)
                 - `edge_adjacency`: nested list of shape (num_edges, 2) (0-indexed)
+                - `fundamental_edge_adjacency`: nested list of shape (num_fundamental_edges, 2) (0-indexed)
+                - `fundamental_tesselation_vecs`: nested list of shape (num_fundamental_edges, 6) (0-indexed)
 
             The dictionary can be unpacked in the creation of a `Lattice` object
 
@@ -235,6 +260,7 @@ class Catalogue:
         uc_dict['name'] = name
         
         compl_start = compl_end = None
+        fund_ea_start = fund_tessvec_start = None
 
         for i_line, line in enumerate(lines):
             if 'unit cell parameters' in line:
@@ -244,32 +270,60 @@ class Catalogue:
             elif 'connectivity' in line:
                 z = float(line.split('Z_avg = ')[1])
                 uc_dict['average_connectivity'] = z
-            elif 'Nodal positions' in line:
-                nod_pos_start = i_line
-            elif 'Bar connectivities' in line:
-                edge_adj_start = i_line
             elif 'Compliance tensors start' in line:
                 compl_start = i_line
             elif 'Compliance tensors end' in line:
                 compl_end = i_line
+            elif 'Nodal positions' in line:
+                nod_pos_start = i_line
+            elif 'Bar connectivities' in line:
+                edge_adj_start = i_line
+            elif 'Fundamental edge adjacency' in line:
+                fund_ea_start = i_line
+            elif 'Fundamental tesselation vectors' in line:
+                fund_tessvec_start = i_line
+            
 
         nodal_coords = []
-        for i_line in range(nod_pos_start+1, edge_adj_start):
+        for i_line in range(nod_pos_start+1, len(lines)):
             line = lines[i_line]
-            assert (i_line==edge_adj_start-1) or (len(line)>1)
             if len(line)>1:
                 nc = [float(w) for w in line.split()]
                 nodal_coords.append(nc)
+            else:
+                break
         uc_dict['nodal_positions'] = nodal_coords
 
         edge_adjacency = []
         for i_line in range(edge_adj_start+1, len(lines)):
             line = lines[i_line]
-            assert (i_line==len(lines)-1) or (len(line)>1)
             if len(line)>1:
                 ea = [int(w)-self.INDEXING for w in line.split()]
                 edge_adjacency.append(ea)
+            else:
+                break
         uc_dict['edge_adjacency'] = edge_adjacency
+
+        if isinstance(fund_ea_start, int):
+            fund_edge_adjacency = []
+            for i_line in range(fund_ea_start+1, len(lines)):
+                line = lines[i_line]
+                if len(line)>1:
+                    ea = [int(w)-self.INDEXING for w in line.split()]
+                    fund_edge_adjacency.append(ea)
+                else:
+                    break
+            uc_dict['fundamental_edge_adjacency'] = fund_edge_adjacency
+
+            fund_tess_vec = []
+            for i_line in range(fund_tessvec_start+1, len(lines)):
+                line = lines[i_line]
+                if len(line)>1:
+                    nc = [float(w) for w in line.split()]
+                    fund_tess_vec.append(nc)
+                else:
+                    break
+            uc_dict['fundamental_tesselation_vecs'] = fund_tess_vec
 
         if isinstance(compl_start, int):
             assert isinstance(compl_end, int)
