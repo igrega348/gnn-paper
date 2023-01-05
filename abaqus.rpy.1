@@ -1,0 +1,24 @@
+# -*- coding: mbcs -*-
+#
+# Abaqus/CAE Release 2020 replay file
+# Internal Version: 2019_09_13-18.49.31 163176
+# Run by ig348 on Thu Jan  5 16:42:04 2023
+#
+
+# from driverUtils import executeOnCaeGraphicsStartup
+# executeOnCaeGraphicsStartup()
+#: Executing "onCaeGraphicsStartup()" in the site directory ...
+from abaqus import *
+from abaqusConstants import *
+session.Viewport(name='Viewport: 1', origin=(1.3724, 1.37037), width=202.017, 
+    height=135.941)
+session.viewports['Viewport: 1'].makeCurrent()
+from driverUtils import executeOnCaeStartup
+executeOnCaeStartup()
+execfile('abq_analyse_parallel.py', __main__.__dict__)
+#* ValueError: invalid literal for int() with base 10: '000000_0'
+#* File "abq_analyse_parallel.py", line 95, in <module>
+#*     data_extractor()
+#* File "abq_analyse_parallel.py", line 42, in data_extractor
+#*     odb_files = [ int(os.path.splitext(f)[0]) for f in output_files if 
+#* f.endswith('.odb') ]

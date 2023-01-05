@@ -18,16 +18,14 @@ IFS=', ' read -r -a radii <<< $rd
 # for element in "${radii[@]}"; do
 #     echo "$element"
 # done
-if [ -f headers.head ]; then
-    rm headers.head
-fi
+
 
 for index in "${!radii[@]}"; do
     newjob="${name}_${index}"
-    sed -e "s/_STRUT_RADIUS_PLACEHOLDER_/${radii[$index]}/" -e "s/**Relative densities.*/**Relative density: ${reldens[$index]}/" -e "s/**Strut radii.*/**Strut radius: ${radii[$index]}/" -e "s/**Job name.*/**Job name: ${newjob}/" $input > "$newjob.inp"
-    startnum=$( grep -n 'Start header' "$newjob.inp" | cut -d : -f 1 )
-    endnum=$( grep -n 'End header' "$newjob.inp" | cut -d : -f 1 )
-    sed -n "$(($startnum+1)),$(($endnum-1)) p;${endnum} q" "$newjob.inp" >> headers.head
-    echo "----- simulation_transition -----" >> headers.head
+    sed -e "s/_STRUT_RADIUS_PLACEHOLDER_/${radii[$index]}/" -e "s/**Relative densities.*/**Relative density: ${reldens[$index]}/" -e "s/**Strut radii.*/**Strut radius: ${radii[$index]}/" -e "s/**Job name.*/**Job name: ${newjob}/" $input > "input_files/$newjob.inp"
+    # startnum=$( grep -n 'Start header' "$newjob.inp" | cut -d : -f 1 )
+    # endnum=$( grep -n 'End header' "$newjob.inp" | cut -d : -f 1 )
+    # sed -n "$(($startnum+1)),$(($endnum-1)) p;${endnum} q" "$newjob.inp" >> headers.head
+    # echo "----- simulation_transition -----" >> headers.head
 done
 # echo $line
