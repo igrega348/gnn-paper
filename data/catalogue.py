@@ -138,6 +138,11 @@ class Catalogue:
                 - `compliance_tensors`
                 - `fundamental_edge_adjacency`
                 - `fundamental_tesselation_vecs`
+                - `base_name`
+                - `imperfection_kind`
+                - `imperfection_level`
+                - `nodal_hash`
+
         """
         data = dict()
 
@@ -150,6 +155,15 @@ class Catalogue:
 
             lines.append(f'Name: {name}')
             lines.append('')
+
+            if 'base_name' in lat_dict:
+                lines.append(f"Base name: {lat_dict['base_name']}")
+            if 'imperfection_level' in lat_dict:
+                lines.append(f"Imperfection level: {lat_dict['imperfection_level']}")
+            if 'imperfection_kind' in lat_dict:
+                lines.append(f"Imperfection kind: {lat_dict['imperfection_kind']}")
+            if 'nodal_hash' in lat_dict:
+                lines.append(f"Nodal hash: {lat_dict['nodal_hash']}")
 
             if 'lattice_constants' in lat_dict:
                 lattice_constants = lat_dict['lattice_constants']
@@ -261,6 +275,7 @@ class Catalogue:
         
         compl_start = compl_end = None
         fund_ea_start = fund_tessvec_start = None
+        nodal_hash = None
 
         for i_line, line in enumerate(lines):
             if 'unit cell parameters' in line:
@@ -270,6 +285,18 @@ class Catalogue:
             elif 'connectivity' in line:
                 z = float(line.split('Z_avg = ')[1])
                 uc_dict['average_connectivity'] = z
+            elif 'Base name' in line:
+                base_name = line.split(':')[1].lstrip()
+                uc_dict['base_name'] = base_name
+            elif 'Imperfection level' in line:
+                imp_level = line.split(':')[1].lstrip()
+                uc_dict['imperfection_level'] = imp_level
+            elif 'Imperfection kind' in line:
+                imp_kind = line.split(':')[1].lstrip()
+                uc_dict['imperfection_kind'] = imp_kind
+            elif 'Nodal hash' in line:
+                nodal_hash = line.split(':')[1].lstrip()
+                uc_dict['nodal_hash'] = nodal_hash
             elif 'Compliance tensors start' in line:
                 compl_start = i_line
             elif 'Compliance tensors end' in line:
@@ -293,6 +320,7 @@ class Catalogue:
             else:
                 break
         uc_dict['nodal_positions'] = nodal_coords
+
 
         edge_adjacency = []
         for i_line in range(edge_adj_start+1, len(lines)):

@@ -6,6 +6,7 @@ import __main__
 import os
 import visualization
 import json
+from collections import OrderedDict
 
 def parse_input_script(fn):
     with open(fn, 'r') as fin:
@@ -18,7 +19,7 @@ def parse_input_script(fn):
             end_line = i_line
             break
     lines = lines[start_line:end_line]
-    odict = dict()
+    odict = OrderedDict()
     for line in lines:
         fields = line.lstrip('*').split(':')
         key = fields[0]
@@ -27,32 +28,36 @@ def parse_input_script(fn):
     return odict
 
 def data_extractor():
+    wdir = './abq_working_dir'
+
     if not os.path.isdir('./processed_data'):
         os.mkdir('./processed_data')
     
-    input_files = os.listdir('./input_files')
-    input_files = [ f for f in input_files if f.endswith('.inp') ]
-    NUM_inp_files = len(input_files)
-    
+    to_process = []
     processed = []
+    simulations_finished = False
     count = 0
     
-    while len(processed) < NUM_inp_files:
-        output_files = os.listdir('./outputs')
-        odb_files = [ (os.path.splitext(f)[0]) for f in output_files if f.endswith('.odb') ]
-        lck_files = [ (os.path.splitext(f)[0]) for f in output_files if f.endswith('.lck') ]
-        odb_ready = set(odb_files) - set(lck_files)
+    while (not simulations_finished) or (len(to_process)>0):
+        if os.path.exists('./simulations_completed.log'):
+            simulations_finished = True
+
+        wdir_files = os.listdir(wdir)
+       
+        odb_names = [ (os.path.splitext(f)[0]) for f in wdir_files if f.endswith('.odb') ]
+        lck_names = [ (os.path.splitext(f)[0]) for f in wdir_files if f.endswith('.lck') ]
+        odb_ready = set(odb_names) - set(lck_names)
         to_process = list( odb_ready - set(processed) )
         
         while len(to_process) > 0:
             jobname = to_process.pop()
             processed.append(jobname)
 
-            ODBNAME = './outputs/{}.odb'.format(jobname)
-            FILEOUTPUT1 = './processed_data/{}.json'.format(jobname)
+            ODBNAME = os.path.join(wdir, '{}.odb'.format(jobname))
+            FILEOUTPUT1 = os.path.join('./processed_data', '{}.json'.format(jobname))
             
             # Read the header from input script
-            fn = os.path.join('./input_files', '{}.inp'.format(jobname))
+            fn = os.path.join(wdir, '{}.inp'.format(jobname))
             odict = parse_input_script(fn)
 
             ###############################################################################################################
@@ -88,7 +93,7 @@ def data_extractor():
             print >> sys.__stdout__, 'i = {}'.format(str(count))
             odb.close()
             
-    with open('completed.log', 'w') as fout:
+    with open('odb_extraction_completed.log', 'w') as fout:
         fout.write('')
         
 ###########################################################################
