@@ -22,7 +22,10 @@ IFS=', ' read -r -a radii <<< $rd
 
 for index in "${!radii[@]}"; do
     newjob="${name}_${index}"
-    sed -e "s/_STRUT_RADIUS_PLACEHOLDER_/${radii[$index]}/" -e "s/**Relative densities.*/**Relative density: ${reldens[$index]}/" -e "s/**Strut radii.*/**Strut radius: ${radii[$index]}/" -e "s/**Job name.*/**Job name: ${newjob}/" $input > "abq_working_dir/$newjob.inp"
+    sed -e "s/_STRUT_RADIUS_PLACEHOLDER_/${radii[$index]}/" \
+      -e "s/**Relative densities.*/**Relative density: ${reldens[$index]}/" \
+      -e "s/**Strut radii.*/**Strut radius: ${radii[$index]}/" \
+      -e "s/**Job name.*/**Job name: ${newjob}/" $input > "abq_working_dir/$newjob.inp"
     # startnum=$( grep -n 'Start header' "$newjob.inp" | cut -d : -f 1 )
     # endnum=$( grep -n 'End header' "$newjob.inp" | cut -d : -f 1 )
     # sed -n "$(($startnum+1)),$(($endnum-1)) p;${endnum} q" "$newjob.inp" >> headers.head

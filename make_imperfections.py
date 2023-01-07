@@ -10,26 +10,34 @@ from utils import plotting, abaqus
 
 
 cat = Catalogue.from_file('./filt_wind.lat', 0)
-cat = cat[:100]
+# process catalogue in chunks of 500
+num_cat = 0
+cat = cat[:500]
 
 MAX_TRY = 10
 IMP_KIND = 'sphere_surf'
 NUM_RELDENS = 10
 
-new_cat_name = 'imperf_cat_100.lat'
+new_cat_name = f'imperf_cat_{num_cat}.lat'
 new_cat_dict = dict()
 
 job_num = 0
 
-with tarfile.open('C:/temp/input_files_cat_100.tar.gz', 'w:gz') as archive:
+with tarfile.open(f'C:/temp/input_files_cat_{num_cat}.tar.gz', 'w:gz') as archive:
 
     for lat_data in tqdm(cat):
         lat_data.pop('edge_adjacency')
+        num_fundamental_nodes = len(np.unique(lat_data['fundamental_edge_adjacency']))
         lat = Lattice(**lat_data)
         lat.crop_unit_cell()
         lat = lat.create_windowed()
 
-        for imperfection_level in [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]:
+        if num_fundamental_nodes==1:
+            imp_levels = [0.0]
+        else:
+            imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
+
+        for imperfection_level in imp_levels:
 
             if imperfection_level==0.0:
                 num_imperf = 1
@@ -46,6 +54,7 @@ with tarfile.open('C:/temp/input_files_cat_100.tar.gz', 'w:gz') as archive:
                         lat_imp = lat.apply_nodal_imperfections(
                             dr_mag=imperfection_level, kind=IMP_KIND
                         )
+                        lat_imp = lat_imp.create_windowed()
                         lat_imp.calculate_fundamental_representation()
                         found = True
                     except (PeriodicPartnersError, WindowingError):
@@ -77,9 +86,10 @@ with tarfile.open('C:/temp/input_files_cat_100.tar.gz', 'w:gz') as archive:
                         'Job name':f'{job_num:06d}',
                         'Lattice name':lat_imp.name,
                         'Base lattice':base_name,
-                        'Date':'2023-01-05', 
+                        'Date':'2023-01-07', 
                         'Relative densities': ', '.join([f'{rd:.4g}' for rd in relative_densities]),
                         'Strut radii': ', '.join([f'{r:.4g}' for r in strut_radii]),
+                        'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
                         'Description':f'Imperfection level {imperfection_level} with various relative densities',
                         'Imperfection level':f'{imperfection_level}',
                         'Catalogue':new_cat_name,
@@ -89,7 +99,7 @@ with tarfile.open('C:/temp/input_files_cat_100.tar.gz', 'w:gz') as archive:
 
                 data = ''.join(abq_input_lines).encode('utf8')
                 out_stream = BytesIO(data)
-                tarinfo = tarfile.TarInfo(name=os.path.join('./input_files', f'{job_num:06d}.inp'))
+                tarinfo = tarfile.TarInfo(name=f'./input_files/{job_num:06d}.inp')
                 tarinfo.size = out_stream.seek(0, os.SEEK_END)
                 out_stream.seek(0)
                 archive.addfile(tarinfo=tarinfo, fileobj=out_stream)

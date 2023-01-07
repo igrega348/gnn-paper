@@ -999,7 +999,7 @@ class Lattice:
         Check is done first whether lattice is in a valid window condition.
 
         Returns:
-            list: list of 2-element sets of node numbers
+            list: list of 2-element sets of node numbers \
                 of periodic partners
 
         Examples:
@@ -1408,7 +1408,7 @@ class Lattice:
         niter = 0
         while ((not window_satisfied or shortest_edge<min_edge_length)
                 and niter<max_num_attempts):
-            temp_lattice = Lattice(**self.to_dict())
+            temp_lattice = Lattice(**self.to_dict(fundamental=False))
             shift_vector = np.random.rand(3)
             temp_lattice.reduced_node_coordinates = (
                 temp_lattice.reduced_node_coordinates + shift_vector
@@ -1437,7 +1437,10 @@ class Lattice:
             raise WindowingError(f'Failed to obtain a window for lattice {self.name}')
 
 
-    def create_windowed(self, num_attempts: int = 10) -> "Lattice":
+    def create_windowed(
+        self, max_num_attempts: int = 10, min_edge_length: float = 5e-3, 
+        return_attempts: bool = False
+    ) -> "Lattice":
         """Create a windowed representation of a lattice
 
         Returns:
@@ -1471,19 +1474,46 @@ class Lattice:
                 fig.tight_layout()
                 axes
         """
-        shift_vector = self.obtain_shift_vector(max_num_attempts=num_attempts)
-        newlat = Lattice(**self.to_dict(fundamental=False))
-        newlat.reduced_node_coordinates += shift_vector
-        newlat.crop_unit_cell()
-        newlat.merge_colinear_edges()
-        nodes_on_edges = newlat.find_nodes_on_edges()
-        if len(nodes_on_edges)>0:
-            newlat.split_edges_by_points(nodes_on_edges)
-        edge_intersections = newlat.find_nodes_on_edges()
-        if len(edge_intersections)>0:
-            newlat.split_edges_by_points(edge_intersections)
-        assert newlat.check_window_conditions()
-        return newlat
+        nattempts = 0
+        window_satisfied = self.check_window_conditions()
+        shortest_edge = self.calculate_edge_lengths().min()
+
+        if window_satisfied and (shortest_edge>min_edge_length):
+            if return_attempts:
+                return self, nattempts
+            else:
+                return self
+
+        else:
+            while ((not window_satisfied or shortest_edge<min_edge_length)
+                    and nattempts<max_num_attempts):
+                temp_lattice = Lattice(**self.to_dict(fundamental=False))
+                shift_vector = np.random.rand(3)*temp_lattice.UC_L
+                temp_lattice.reduced_node_coordinates = (
+                    temp_lattice.reduced_node_coordinates + shift_vector
+                )
+                temp_lattice.crop_unit_cell()
+                temp_lattice.merge_colinear_edges()
+                nodes_on_edges = temp_lattice.find_nodes_on_edges()
+                if len(nodes_on_edges)>0:
+                    temp_lattice.split_edges_by_points(nodes_on_edges)
+                edge_intersections = temp_lattice.find_nodes_on_edges()
+                if len(edge_intersections)>0:
+                    temp_lattice.split_edges_by_points(edge_intersections)
+                window_satisfied = temp_lattice.check_window_conditions()
+                shortest_edge = temp_lattice.calculate_edge_lengths().min()
+                
+                nattempts += 1
+
+            if (window_satisfied) and (shortest_edge>min_edge_length):
+                if return_attempts:
+                    return temp_lattice, nattempts
+                else:
+                    return temp_lattice
+            else:
+                raise WindowingError(
+                    f'Failed to obtain a window for lattice {self.name}'
+                )
 
     def apply_nodal_imperfections(self, dr_mag: float, kind: str) -> "Lattice":
         """Displace inner nodes using the fundamental representation.

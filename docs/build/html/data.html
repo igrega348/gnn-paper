@@ -412,7 +412,7 @@ All nodal coordinates which are very close to 0 or UC_L
 
 <dl class="py method">
 <dt class="sig sig-object py" id="data.Lattice.create_windowed">
-<span class="sig-name descname"><span class="pre">create_windowed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Lattice" title="data.lattice.Lattice"><span class="pre">Lattice</span></a></span></span><a class="headerlink" href="#data.Lattice.create_windowed" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">create_windowed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_num_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_edge_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.005</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Lattice" title="data.lattice.Lattice"><span class="pre">Lattice</span></a></span></span><a class="headerlink" href="#data.Lattice.create_windowed" title="Permalink to this definition"></a></dt>
 <dd><p>Create a windowed representation of a lattice</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
@@ -523,11 +523,7 @@ All nodal coordinates which are very close to 0 or UC_L
 <p>Check is done first whether lattice is in a valid window condition.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p><dl class="simple">
-<dt>list of 2-element sets of node numbers</dt><dd><p>of periodic partners</p>
-</dd>
-</dl>
-</p>
+<dd class="field-odd"><p>list of 2-element sets of node numbers                 of periodic partners</p>
 </dd>
 <dt class="field-even">Return type</dt>
 <dd class="field-even"><p>list</p>
@@ -694,7 +690,7 @@ in point_array.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="data.Lattice.to_dict">
-<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#data.Lattice.to_dict" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fundamental</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#data.Lattice.to_dict" title="Permalink to this definition"></a></dt>
 <dd><p>Obtain a dictionary with the reduced representation.</p>
 </dd></dl>
 
@@ -794,6 +790,12 @@ or when unit cells from a file are modified</p>
 <dt>They can contain also:</dt><dd><ul class="simple">
 <li><p><cite>lattice_constants</cite></p></li>
 <li><p><cite>compliance_tensors</cite></p></li>
+<li><p><cite>fundamental_edge_adjacency</cite></p></li>
+<li><p><cite>fundamental_tesselation_vecs</cite></p></li>
+<li><p><cite>base_name</cite></p></li>
+<li><p><cite>imperfection_kind</cite></p></li>
+<li><p><cite>imperfection_level</cite></p></li>
+<li><p><cite>nodal_hash</cite></p></li>
 </ul>
 </dd>
 </dl>
@@ -843,6 +845,8 @@ will be returned</p>
 <li><p><cite>compliance_tensors</cite></p></li>
 <li><p><cite>nodal_positions</cite>: nested list of shape (num_nodes, 3)</p></li>
 <li><p><cite>edge_adjacency</cite>: nested list of shape (num_edges, 2) (0-indexed)</p></li>
+<li><p><cite>fundamental_edge_adjacency</cite>: nested list of shape (num_fundamental_edges, 2) (0-indexed)</p></li>
+<li><p><cite>fundamental_tesselation_vecs</cite>: nested list of shape (num_fundamental_edges, 6) (0-indexed)</p></li>
 </ul>
 </dd>
 </dl>

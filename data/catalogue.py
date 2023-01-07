@@ -188,9 +188,8 @@ class Catalogue:
                     S = compliance_tensors[rel_dens]
                     assert S.shape==(6,6)
                     nums = S[np.triu_indices(6)].tolist()
-                    line = ''
-                    for s in nums:
-                        line = line + f'{s:.5g},'
+                    nums = [f'{x:.5g}' for x in nums]
+                    line = ','.join(nums)
                     lines.append(line)
                 lines.append('Compliance tensors end')
                 lines.append('')

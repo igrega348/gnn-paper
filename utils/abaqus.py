@@ -126,10 +126,10 @@ def write_abaqus_inp(
     # (1,1) , (1,2) , (1,3) , (2,1) , (2,2) , (2,3)
     periodic_pairs = lat.get_periodic_partners()
     for ipair, pair_set in enumerate(periodic_pairs):
-        lines.append(f'** Constraint {ipair}')
         pair_tup = tuple(pair_set)
         n1 = pair_tup[0]
         n2 = pair_tup[1]
+        lines.append(f'** Constraint {ipair}, nodes {{{n1+1},{n2+1}}}')
         lines.append(f'*Nset, nset=PBC_NODE_{ipair}, instance=LATTICE')
         lines.append(f'  {n1+1},')
         lines.append(f'*Nset, nset=MIRROR_NODE_{ipair}, instance=LATTICE')
@@ -200,10 +200,12 @@ def calculate_compliance_tensor(
     failed = False
     for refpt, dof in ordered_loading_cases:
         load_dict = odict[f'Load-REF{refpt}-dof{dof}']
-        if len(load_dict.keys())<1: failed==True; return []
+        if len(load_dict.keys())<1: 
+            raise ValueError
         force = load_dict[f'REF{refpt}, RF{dof}']
         stress = force/uc_vol if refpt==1 else 0.5*force/uc_vol
-        if stress==0: failed==True; return []
+        if stress==0: 
+            raise ValueError
         if refpt==1:
             k=l=dof
         else:
