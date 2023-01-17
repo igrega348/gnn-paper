@@ -1,4 +1,4 @@
-from .datasets import GLAMMDataset, GLAMM_tens_Dataset, GLAMM_rhotens_Dataset
+from .datasets import GLAMM_rhotens_Dataset
 from . import elasticity_func
 from .catalogue import Catalogue
 from .lattice import Lattice

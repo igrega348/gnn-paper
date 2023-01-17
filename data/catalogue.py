@@ -183,7 +183,7 @@ class Catalogue:
                 compliance_tensors = lat_dict['compliance_tensors']
                 lines.append('')
                 lines.append('Compliance tensors start (flattened upper triangular)')
-                for rel_dens in compliance_tensors:
+                for rel_dens in sorted(compliance_tensors.keys()):
                     lines.append(f'-> at relative density {rel_dens}:')
                     S = compliance_tensors[rel_dens]
                     assert S.shape==(6,6)
@@ -289,7 +289,7 @@ class Catalogue:
                 uc_dict['base_name'] = base_name
             elif 'Imperfection level' in line:
                 imp_level = line.split(':')[1].lstrip()
-                uc_dict['imperfection_level'] = imp_level
+                uc_dict['imperfection_level'] = float(imp_level)
             elif 'Imperfection kind' in line:
                 imp_kind = line.split(':')[1].lstrip()
                 uc_dict['imperfection_kind'] = imp_kind

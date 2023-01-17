@@ -11,8 +11,25 @@ from utils import plotting, abaqus
 
 cat = Catalogue.from_file('./filt_wind.lat', 0)
 # process catalogue in chunks of 500
-num_cat = 0
-cat = cat[:500]
+# 0 0:500
+# 1 500:1000
+# 2 1000:1500
+# 3 1500:2000
+# 4 2000:2500
+# 5 2500:3000
+# 6 3000:3500
+# 7 3500:4000
+# 8 4000:4500
+# 9 4500:5000
+#10 5000:5500
+#11 5500:6000
+#12 6000:6500
+#13 6500:7000
+#14 7000:7500
+#15 7500:8000
+#16 8000:
+num_cat = 5
+cat = cat[2500:3000]
 
 MAX_TRY = 10
 IMP_KIND = 'sphere_surf'
@@ -59,7 +76,9 @@ with tarfile.open(f'C:/temp/input_files_cat_{num_cat}.tar.gz', 'w:gz') as archiv
                         found = True
                     except (PeriodicPartnersError, WindowingError):
                         pass
-                assert found, f'Lattice {lat.name} failed'
+                if not found:
+                    print(f'Lattice {lat.name} failed')
+                    break
 
                 relative_densities = 0.001 + 0.05*np.random.rand(NUM_RELDENS)
                 relative_densities.sort()
@@ -86,7 +105,7 @@ with tarfile.open(f'C:/temp/input_files_cat_{num_cat}.tar.gz', 'w:gz') as archiv
                         'Job name':f'{job_num:06d}',
                         'Lattice name':lat_imp.name,
                         'Base lattice':base_name,
-                        'Date':'2023-01-07', 
+                        'Date':'2023-01-16', 
                         'Relative densities': ', '.join([f'{rd:.4g}' for rd in relative_densities]),
                         'Strut radii': ', '.join([f'{r:.4g}' for r in strut_radii]),
                         'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
@@ -105,6 +124,9 @@ with tarfile.open(f'C:/temp/input_files_cat_{num_cat}.tar.gz', 'w:gz') as archiv
                 archive.addfile(tarinfo=tarinfo, fileobj=out_stream)
                 
                 job_num += 1
+
+            if not found:
+                break
 
 new_cat = Catalogue.from_dict(new_cat_dict)
 new_cat.to_file(new_cat_name)
