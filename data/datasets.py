@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import shutil
 import sys
 from typing import Callable, List, Optional, Union, Iterable
 from random import shuffle
@@ -79,9 +80,10 @@ def assemble_catalogue(
     imperfection_levels: Iterable,
     num_imperf_realisations: int,
     input_dir: str,
-    output_fn: str,
     choose_base: str = 'first',
-    choose_imperf: str = 'first'
+    choose_imperf: str = 'first',
+    output_fn: Optional[str] = None,
+    return_df: bool = False
 ) -> None:
     cat_fns = []
     for fn in os.listdir(input_dir):
@@ -90,8 +92,7 @@ def assemble_catalogue(
 
     imperfection_levels = [float(il) for il in imperfection_levels]
     
-    base_name_tup = []
-    cat_base_names = {}
+
     df = pd.DataFrame()
     for i_cat, fn in enumerate(cat_fns):
         logging.info(f'Loading dataset {fn}')
@@ -120,21 +121,77 @@ def assemble_catalogue(
 
     def func(row):
         imp_name = row['imp_name']
+        imp_count = num_imperf[imp_name]
         num_imperf[imp_name]+=1
-        if num_imperf[imp_name]<=num_imperf_realisations:
-            return True
-        else:
-            return False
+        return imp_count
 
-    choose = df.apply(func, axis=1)
-    selected_df = df.loc[choose, :]
+    df.loc[:, 'imperf_count'] = df.apply(func, axis=1)
+    if choose_imperf=='first':
+        selected_df = df.loc[df['imperf_count']<num_imperf_realisations, :]
+    elif choose_imperf=='last':
+        imp_totals = df.groupby(by='imp_name')['imperf_count'].max() + 1
+        selection_mask = (df['imperf_count'] >= imp_totals.loc[df['imp_name']].values - num_imperf_realisations)
+        selected_df = df.loc[selection_mask, :]
     
-    selected_lat_dict = selected_df.to_dict('index')
+    logging.info(f'Selected {selected_df.shape[0]} lattices')
+    
+    if isinstance(output_fn, str) and len(output_fn)>0:
+        selected_lat_dict = selected_df.to_dict('index')
+        new_cat = Catalogue.from_dict(selected_lat_dict)
+        new_cat.to_file(output_fn)
+        logging.info(f'Saving catalogue to file {output_fn}')
 
-    new_cat = Catalogue.from_dict(selected_lat_dict)
-    new_cat.to_file(output_fn)
+    if return_df:
+        return selected_df
+    else:
+        return None
 
-    return None
+def get_uc_volume(crys_data: npt.NDArray) -> float:
+    a = crys_data[0]
+    b = crys_data[1]
+    c = crys_data[2]
+    alpha = crys_data[3] * np.pi/180 # in radians
+    beta = crys_data[4] * np.pi/180
+    gamma = crys_data[5] * np.pi/180
+    
+    term = (1.0 
+            - (np.cos(alpha))**2.0 
+            - (np.cos(beta))**2.0 
+            - (np.cos(gamma))**2.0)
+    term = term + 2.0 * np.cos(alpha) * np.cos(beta) * np.cos(gamma)
+    return a*b*c* np.sqrt( term )  
+
+def get_transform_matrix(lattice_constants: np.ndarray) -> npt.NDArray[np.float_]:
+    """Assemble transformation matrix from crystal data.
+
+    Formula is in the Appendix to the PNAS paper:
+    Lumpe, T. S. and Stankovic, T. (2020)
+    https://www.pnas.org/doi/10.1073/pnas.2003504118.
+    """
+    crys_data = lattice_constants
+    a = crys_data[0]
+    b = crys_data[1]
+    c = crys_data[2]
+    alpha = crys_data[3] * np.pi/180 # in radians
+    beta = crys_data[4] * np.pi/180
+    gamma = crys_data[5] * np.pi/180
+    
+    omega = get_uc_volume(crys_data)
+    
+    transform_mat = np.zeros((3,3))
+    transform_mat[0,0] = a
+    transform_mat[0,1] = b * np.cos(gamma)
+    transform_mat[0,2] = c * np.cos(beta)
+    transform_mat[1,0] = 0
+    transform_mat[1,1] = b * np.sin(gamma)
+    transform_mat[1,2] = c * ((np.cos(alpha) 
+                            - (np.cos(beta)*np.cos(gamma)))
+                            /(np.sin(gamma)))
+    transform_mat[2,0] = 0
+    transform_mat[2,1] = 0
+    transform_mat[2,2] = ( omega / ( a*b*np.sin(gamma) ) )
+
+    return transform_mat
 
 
 class GLAMM_rhotens_Dataset(InMemoryDataset):
@@ -145,49 +202,52 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
 
 
     def __init__(self, root: str, 
-            transform: Optional[Callable] = None,
-            pre_transform: Optional[Callable] = None,
-            pre_filter: Optional[Callable] = None,
-            nlat: int = 20, 
-            nimperf: int = 8,
-            imperf_level: str = '0.0',
-            representation: str = 'pbc',
-            node_pos: bool = False,
+            catalogue_path: str,
+            dset_fname: str,
+            representation: str = 'fund_inner',
             node_ft: str = 'ones',
             edge_ft: str = 'r',
             graph_ft_format: str = 'Voigt',
-            n_reldens: Union[int, slice] = 1,
+            n_reldens: int = 1,
+            choose_reldens: str = 'first',
+            #
+            transform: Optional[Callable] = None,
+            pre_transform: Optional[Callable] = None,
+            pre_filter: Optional[Callable] = None,
         ):
         
-        self.nlat = nlat
-        self.imperf_level = imperf_level
-        self.nimperf = nimperf
-        self.node_pos = node_pos
-        self.graph_ft_format = graph_ft_format
-        # self.rel_dens = rel_dens
-        if isinstance(n_reldens, int):
-            self.reldens_slice = slice(n_reldens+1)
-        elif isinstance(n_reldens, slice):
-            self.reldens_slice = n_reldens
        
-        if representation in ['orig','pbc','fund_tess','fund_inner']:
+        self.graph_ft_format = graph_ft_format
+
+        self.nreldens  = n_reldens
+        if choose_reldens=='first':
+            self.reldens_slice = slice(None, n_reldens, 1)
+        elif choose_reldens=='last':
+            self.reldens_slice = slice(-n_reldens, None, 1)
+        else:
+            raise ValueError(f'choose_reldens `{choose_reldens}` not recognised')
+
+        if representation in ['fund_inner']:
             self.repr = representation
         else:
             raise ValueError(f'Representation {representation} does not exist')
+
         if node_ft in ['ones']:
             self.node_ft_format = node_ft
         else:
             raise ValueError(f'Node ft format `{node_ft}` not recognised')
+
         for key in edge_ft.split(','):
             if key not in ['L','r','e_vec','euler']:
                 raise ValueError(f'Edge feature format key `{key}` not recognised')
         self.edge_ft_format = edge_ft
             
 
-        repo_url = 'https://github.com/igrega348/lattices/raw/main/'
+        # repo_url = 'https://github.com/igrega348/lattices/raw/main/'
                 
-        self.raw_compressed_name = f'cat_{nlat}lat_reldens_p{imperf_level}.lat.gz'
-        self.raw_url0 = repo_url + self.raw_compressed_name
+        self.catalogue_path = osp.realpath(catalogue_path)
+        self.catalogue_name = osp.basename(catalogue_path)
+        self.processed_name = osp.basename(dset_fname)
 
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -202,114 +262,55 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
 
     @property
     def raw_file_names(self) -> List[str]:
-        return [f'cat_{i}.lat' for i in [0,1,2,3,5]]
+        return [self.catalogue_name]
 
 
     @property
     def processed_file_names(self) -> str:
-        return f'data_{self.nlat}lat_{self.nimperf}imp_p{self.imperf_level}_{self.repr}_nft-{self.node_ft_format}_eft-{self.edge_ft_format}{pos}_{self.graph_ft_format}_nreldens-{self.reldens_slice}.pt'
+        return self.processed_name
        
 
     def download(self):
-        pass
+        assert osp.isfile(self.catalogue_path)
+        shutil.copy(self.catalogue_path, self.raw_dir)
         # for url in [self.raw_url0]:
         #     file_path = download_url(url, self.raw_dir)
         #     extract_gz(osp.join(self.raw_dir, self.raw_compressed_name), self.raw_dir)
 
     def process(self):
         cat = Catalogue.from_file(self.raw_paths[0], 0)
-        print(f'Processing catalogue of {self.nlat} lattices.'
-        f' Imperfection level {self.imperf_level},'
-        f' {self.nimperf} imperfection realizations,'
+
+        print(f'Processing catalogue {self.catalogue_name}.'
+        f' Number of lattices {len(cat)} x {self.nreldens} = {len(cat)*self.nreldens},'
         f' Representation {self.repr}.'
-        f' Exporting nodal positions: {str(self.node_pos)}.'
         f' Nodal features: {self.node_ft_format}.'
         f' Edge features: {self.edge_ft_format}.'
-        f' In total {self.nlat*self.nimperf}.'
         f' Graph feature format {self.graph_ft_format}.'
         )
-
-        names = cat.names
     
         data_list = []
-        base_name_counts = dict()
 
-        for i, lattice in enumerate(tqdm(names)):
-            base_name = '_'.join(lattice.split('_')[:3])
-            if base_name in base_name_counts:
-                if base_name_counts[base_name] >= self.nimperf:
-                    continue
-                else:
-                    base_name_counts[base_name] += 1
-            else:
-                base_name_counts[base_name] = 1
-
-            lat = Lattice(**cat.get_unit_cell(lattice))
+        for i, lat_data in enumerate(tqdm(cat)):
             
-            tessellation_vecs = np.zeros((lat.edge_adjacency.shape[0], 3))
+            # lat = Lattice(lat_data)
+            name = lat_data['name']
+            nodal_positions = np.atleast_2d(lat_data['nodal_positions'])
+            fundamental_edge_adjacency = np.atleast_2d(lat_data['fundamental_edge_adjacency'])
+            fundamental_tess_vecs = np.atleast_2d(lat_data['fundamental_tesselation_vecs'])
+            lattice_constants = np.array(lat_data['lattice_constants'])
+            compliance_tensors = lat_data['compliance_tensors']
+            
+            uq_inds = np.unique(fundamental_edge_adjacency)
+            nodal_positions = nodal_positions[uq_inds]
+            edge_adjacency = np.searchsorted(uq_inds, fundamental_edge_adjacency)
+            tessellation_vecs = fundamental_tess_vecs[:, 3:] - fundamental_tess_vecs[:, :3]
             unit_shifts = np.zeros_like(tessellation_vecs).astype(int)
+            unit_shifts[tessellation_vecs!=0] = np.sign(tessellation_vecs[tessellation_vecs!=0])
 
-            if self.repr in ['fund_tess','fund_inner']:
-                lat.calculate_fundamental_representation()
-                edge_coords = lat._node_adj_to_ec(
-                    lat.reduced_node_coordinates, lat.fundamental_edge_adjacency
-                )
-                assert lat.fundamental_tesselation_vecs[:,:3].sum()==0
-                tessellation_vecs = lat.fundamental_tesselation_vecs[:,3:]
-                unit_shifts = np.zeros_like(tessellation_vecs).astype(int)
-                unit_shifts[tessellation_vecs!=0] = np.sign(tessellation_vecs[tessellation_vecs!=0])
-                tessellation_vecs = lat.transform_coordinates(
-                    tessellation_vecs, lat.get_transform_matrix()
-                )
-                edge_coords += lat.fundamental_tesselation_vecs
-                edge_coords[:,:3] = lat.transform_coordinates(
-                    edge_coords[:,:3], lat.get_transform_matrix()
-                    )
-                edge_coords[:,3:] = lat.transform_coordinates(
-                    edge_coords[:,3:], lat.get_transform_matrix()
-                    )
-                if self.repr=='fund_tess':
-                    nodal_pos, edge_adjacency = lat._ec_to_node_adj(edge_coords)
-                else: # fund_inner
-                    edge_adjacency = lat.fundamental_edge_adjacency
-                    if self.node_pos:
-                        edge_adjacency, nodal_pos = get_uq_node_nums(
-                            edge_adjacency, lat.reduced_node_coordinates
-                        )
-                    else:
-                        edge_adjacency = get_uq_node_nums(edge_adjacency)
-
-                if self.node_pos:
-                    nodal_pos = lat.transform_coordinates(
-                        nodal_pos, lat.get_transform_matrix()
-                    )
-
-                edge_lengths = lat._edge_lengths_from_coords(edge_coords)
-
-            else:
-                pp_list = lat.get_periodic_partners()
-                lat.update_representations()
-                nodal_pos = lat.transformed_node_coordinates
-                edge_coords = lat.transformed_edge_coordinates
-                edge_lengths = lat.transformed_edge_lengths
-                edge_adjacency = lat.edge_adjacency
-                if self.repr=='pbc':
-                    # merge periodic partners and relabel edges
-                    if self.node_pos:
-                        edge_adjacency, nodal_pos = periodic_edge_adjacency(
-                            edge_adjacency, pp_list, nodal_pos
-                        )
-                    else:
-                        edge_adjacency = periodic_edge_adjacency(
-                            edge_adjacency, pp_list
-                        )
-                else:
-                    pass
-
-           
-            edge_vecs = (edge_coords[:,3:] - edge_coords[:,:3])
-            edge_unit_vecs = edge_vecs / np.linalg.norm(edge_vecs, axis=1, keepdims=True)
-
+            # transform coordinates
+            Q = get_transform_matrix(lattice_constants)
+            nodal_positions = nodal_positions@(Q.T)
+            tessellation_vecs = tessellation_vecs@(Q.T)
 
             edge_adjacency = np.row_stack(
                 (edge_adjacency, edge_adjacency[:,::-1])
@@ -321,25 +322,36 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
                 (tessellation_vecs, -tessellation_vecs)
             )
 
+            # data for strut thickness calibration
+            edge_vecs = nodal_positions[edge_adjacency[:,1]] - nodal_positions[edge_adjacency[:,0]]
+            edge_vecs += tessellation_vecs
+            edge_lengths = np.linalg.norm(edge_vecs, axis=1)
+            sum_edge_lengths = edge_lengths.sum()
+            uc_vol = get_uc_volume(lattice_constants)
+
             num_uq_nodes = len(np.unique(edge_adjacency))
+            
+            # features common for all relative densities
+            _nodal_ft = torch.ones((num_uq_nodes,1), dtype=torch.float)
+            _shifts = torch.tensor(tessellation_vecs, dtype=torch.float)
+            _unit_shifts = torch.tensor(unit_shifts, dtype=torch.long)
+            _edge_adj = torch.tensor(edge_adjacency.T, dtype=torch.long)
+            _nodal_pos = torch.tensor(nodal_positions, dtype=torch.float)
 
-            if len(lat.compliance_tensors)<2: 
-                print(f'Lattice {lat.name} does not have enough data')
-                raise ValueError
 
-            avail_reldens = list(lat.compliance_tensors.keys())
+            assert len(compliance_tensors)>1, f'Lattice {name} does not have enough data'
+            avail_reldens = list(compliance_tensors.keys())
             for rel_dens in avail_reldens[self.reldens_slice]:
+                
+                edge_rad = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
+                edge_radii = edge_rad*np.ones(edge_adjacency.shape[0])
 
-                lat.set_edge_radii(rel_dens, repr='transformed') # will calculate transformed coordinates
-                edge_rad = lat.edge_radii.mean()
-                edge_radii = edge_rad*np.ones(edge_coords.shape[0])
-
-                compliance = lat.compliance_tensors[rel_dens]
+                compliance = compliance_tensors[rel_dens]
                 stiffness = np.linalg.inv(compliance)
                 if self.graph_ft_format=='Voigt':
                     stiffness = torch.from_numpy(stiffness).unsqueeze(0)
                     compliance = torch.from_numpy(compliance).unsqueeze(0)
-                elif (self.graph_ft_format=='cartesian_4'):    
+                elif self.graph_ft_format=='cartesian_4':    
                     compliance = elasticity_func.compliance_Voigt_to_4th_order(compliance)
                     stiffness = elasticity_func.stiffness_Voigt_to_4th_order(stiffness)
                     compliance = torch.from_numpy(compliance).unsqueeze(0)
@@ -356,14 +368,15 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
                         edge_ft_list.append(edge_radii)
                         edge_ft_list_rev.append(edge_radii)
                     elif key=='e_vec':
+                        edge_unit_vecs = edge_vecs/edge_lengths.reshape(-1,1)
                         edge_ft_list.append(edge_unit_vecs)
                         edge_ft_list_rev.append(-edge_unit_vecs)
                     elif key=='euler':
-                        v = edge_unit_vecs
+                        v = edge_vecs/edge_lengths.reshape(-1,1)
                         _phi = np.arccos(v[:,2])
                         _th = np.arctan2(v[:,1],v[:,0])+np.pi
                         edge_ft_list.append(np.column_stack(_phi, _th))
-                        v = -edge_unit_vecs
+                        v = -edge_vecs/edge_lengths.reshape(-1,1)
                         _phi = np.arccos(v[:,2])
                         _th = np.arctan2(v[:,1],v[:,0])+np.pi
                         edge_ft_list_rev.append(np.column_stack(_phi, _th))
@@ -371,39 +384,23 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
                         raise ValueError(f'Unrecognised edge format string `{key}`')
 
                 edge_features = np.column_stack(edge_ft_list)
-                # reverse connections
-                edge_features_rev = np.column_stack(edge_ft_list_rev)
-                edge_features = np.row_stack((edge_features, edge_features_rev))
 
-            
-                if self.node_pos:
-                    pos = torch.tensor(nodal_pos, dtype=torch.float)
-                else:
-                    pos = None
+                # convert to torch tensors
+                _edge_ft = torch.tensor(edge_features, dtype=torch.float)
                 
-                edge_ft = torch.tensor(edge_features, dtype=torch.float)
-                edge_adj = torch.tensor(edge_adjacency.T, dtype=torch.long)
-                # graph_ft = torch.from_numpy(compliance)
-            
-
-            
-                if self.node_ft_format=='ones':
-                    nodal_features = np.ones(num_uq_nodes)
-                    nodal_ft = torch.tensor(
-                        nodal_features.reshape((-1,1)), dtype=torch.float
-                        )
-
                 data = Data(
-                    node_attrs=nodal_ft, 
-                    edge_index=edge_adj, 
-                    edge_attr=edge_ft, 
-                    shifts = torch.tensor(tessellation_vecs, dtype=torch.float),
-                    unit_shifts = torch.tensor(unit_shifts, dtype=torch.long),
+                    # common for all reldens
+                    name=name,
+                    positions=_nodal_pos,
+                    node_attrs=_nodal_ft, 
+                    edge_index=_edge_adj, 
+                    shifts=_shifts,
+                    unit_shifts=_unit_shifts,
+                    # for this reldens
+                    edge_attr=_edge_ft, 
                     rel_dens=rel_dens,
                     stiffness=stiffness,
                     compliance=compliance,
-                    positions=pos,
-                    name=lat.name
                     )
 
                 if self.pre_filter is not None and not self.pre_filter(data):

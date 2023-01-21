@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Union, Iterable
 # %%
 def get_common_normal_guess(nodes : np.ndarray, edges : np.ndarray):
     assert nodes.shape[1]==3
@@ -22,6 +22,7 @@ def get_common_normal_guess(nodes : np.ndarray, edges : np.ndarray):
 # %%
 def write_abaqus_inp(
     lat: "Lattice", loading : List[Tuple], 
+    strut_radii: Iterable,
     metadata : Dict[str, str], fname : Optional[str] = None
     ):
     """Write abaqus input script for a specific lattice and loading 
@@ -60,7 +61,8 @@ def write_abaqus_inp(
     lines.append('**')
     lines.append('** PARTS')
     lines.append('**')
-    lines.append('*Part, name=LATTICE')
+    
+    lines.append(f'*Part, name=LATTICE')
 
     nodes = lat.transformed_node_coordinates
     edges = lat.edge_adjacency
@@ -77,87 +79,97 @@ def write_abaqus_inp(
         lines.append(f'{k+1}, {edge[0]+1}, {edge[1]+1}')
 
     lines.append('**')
-    lines.append(f'*Beam Section, elset=FULL_LATTICE, material=Material-1, section=CIRC')
-    strut_radius = '_STRUT_RADIUS_PLACEHOLDER_'
-    lines.append(f'{strut_radius}') # radius of circular section
-    # orientation of section
-    normal_vec = get_common_normal_guess(nodes, edges)
-    lines.append(f'{normal_vec[0]:.8g}, ' +
-                    f'{normal_vec[1]:.8g}, ' + 
-                    f'{normal_vec[2]:.8g}'
-                )
-    lines.append('**')
     lines.append('* End Part')
+
     lines.append('**')
     # REFERENCE POINTS
-    lines.append('*Part, name=REF1')
-    lines.append('*Node')
-    lines.append('  1, -0.1, -0.1, -0.1')
-    lines.append('*End Part')
-    lines.append('*Part, name=REF2')
-    lines.append('*Node')
-    lines.append('  1, -0.2, -0.2, -0.2')
-    lines.append('*End Part')
+    for i_instance, _ in enumerate(strut_radii):
+        lines.append(f'*Part, name=INST{i_instance}-REF1')
+        lines.append('*Node')
+        lines.append('  1, -0.1, -0.1, -0.1')
+        lines.append('*End Part')
+        lines.append(f'*Part, name=INST{i_instance}-REF2')
+        lines.append('*Node')
+        lines.append('  1, -0.2, -0.2, -0.2')
+        lines.append('*End Part')
+        lines.append('**')
+
     # ASSEMBLY
     lines.append('**')
     lines.append('** ASSEMBLY')
     lines.append('**')
     lines.append('*Assembly, name=Assembly')
-    lines.append('*Instance, name=LATTICE, part=LATTICE')
-    lines.append('*End Instance')
-    lines.append('*Instance, name=REF1-1, part=REF1')
-    lines.append('*End Instance')
-    lines.append('*Instance, name=REF2-1, part=REF2')
-    lines.append('*End Instance')
-    lines.append('*Nset, nset=REF1, instance=REF1-1')
-    lines.append('  1,')
-    lines.append('*Nset, nset=REF2, instance=REF2-1')
-    lines.append('  1,')
-    lines.append('*Nset, nset=REF-PTS')
-    lines.append('  REF1, REF2')
-    lines.append('**')
-    lines.append('** EQUATIONS')
-    lines.append('**')
-    # periodic node sets and equations
-    ###################################
-    # REFERENCE POINT ASSIGNMENT
-    # strain epsilon_ij is mapped to (refpointnum, refpointdeg) as:
-    # eps_11, eps_22, eps_33, eps_12, eps_13, eps_23
-    # (1,1) , (1,2) , (1,3) , (2,1) , (2,2) , (2,3)
-    periodic_pairs = lat.get_periodic_partners()
-    for ipair, pair_set in enumerate(periodic_pairs):
-        pair_tup = tuple(pair_set)
-        n1 = pair_tup[0]
-        n2 = pair_tup[1]
-        lines.append(f'** Constraint {ipair}, nodes {{{n1+1},{n2+1}}}')
-        lines.append(f'*Nset, nset=PBC_NODE_{ipair}, instance=LATTICE')
-        lines.append(f'  {n1+1},')
-        lines.append(f'*Nset, nset=MIRROR_NODE_{ipair}, instance=LATTICE')
-        lines.append(f'  {n2+1},')
-        # 3 rotations
-        for ideg in range(4,7):
-            lines.append(f'*Equation')
-            lines.append('2')
-            lines.append(f'MIRROR_NODE_{ipair}, {ideg}, 1.')
-            lines.append(f'PBC_NODE_{ipair}, {ideg}, -1.')
-        # 
-        dr = nodes[n2, :] - nodes[n1, :]
-        # active degrees of freedom in constraint
-        i_dr_nonzero = np.flatnonzero(np.abs(dr)>1e-3) 
-        nactive = i_dr_nonzero.shape[0]
-        assert nactive>0
-        # 3 displacements
-        for ideg in range(1,4):
-            lines.append(f'*Equation')
-            lines.append(f'{2+nactive}')
-            lines.append(f'MIRROR_NODE_{ipair}, {ideg}, 1.')
-            lines.append(f'PBC_NODE_{ipair}, {ideg}, -1.')
-            for jdeg in i_dr_nonzero+1:
-                ddr = dr[jdeg-1]
-                refptnum=1 if jdeg==ideg else 2
-                refptdeg=jdeg if jdeg==ideg else ideg + jdeg - 2
-                lines.append(f'REF{refptnum}, {refptdeg}, {-ddr}')
-    lines.append('**')
+    # for each instance:
+    for i_instance, strut_radius in enumerate(strut_radii):
+        lines.append(f'*Instance, name=INST{i_instance}-LAT, part=LATTICE')
+        lines.append(f'{i_instance*1.5:.4g} 0 0')
+        lines.append(f'*Beam Section, elset=FULL_LATTICE, material=Material-1, section=CIRC')
+        # strut_radius = '_STRUT_RADIUS_PLACEHOLDER_'
+        lines.append(f'{strut_radius}') # radius of circular section
+        # orientation of section
+        normal_vec = get_common_normal_guess(nodes, edges)
+        lines.append(f'{normal_vec[0]:.5g}, ' +
+                        f'{normal_vec[1]:.5g}, ' + 
+                        f'{normal_vec[2]:.5g}'
+                    )
+        lines.append('**')
+        lines.append('*End Instance')
+        lines.append(f'*Instance, name=INST{i_instance}-REF1-A, part=INST{i_instance}-REF1')
+        lines.append(f'{i_instance*1.5:.4g} 0 0')
+        lines.append('*End Instance')
+        lines.append(f'*Instance, name=INST{i_instance}-REF2-A, part=INST{i_instance}-REF2')
+        lines.append(f'{i_instance*1.5:.4g} 0 0')
+        lines.append('*End Instance')
+        lines.append(f'*Nset, nset=INST{i_instance}-REF1, instance=INST{i_instance}-REF1-A')
+        lines.append('  1,')
+        lines.append(f'*Nset, nset=INST{i_instance}-REF2, instance=INST{i_instance}-REF2-A')
+        lines.append('  1,')
+        lines.append(f'*Nset, nset=INST{i_instance}-REF-PTS')
+        lines.append(f'  INST{i_instance}-REF1, INST{i_instance}-REF2')
+        lines.append('**')
+        lines.append('** EQUATIONS')
+        lines.append('**')
+        # periodic node sets and equations
+        ###################################
+        # REFERENCE POINT ASSIGNMENT
+        # strain epsilon_ij is mapped to (refpointnum, refpointdeg) as:
+        # eps_11, eps_22, eps_33, eps_12, eps_13, eps_23
+        # (1,1) , (1,2) , (1,3) , (2,1) , (2,2) , (2,3)
+        periodic_pairs = lat.get_periodic_partners()
+        for ipair, pair_set in enumerate(periodic_pairs):
+            pair_tup = tuple(pair_set)
+            n1 = pair_tup[0]
+            n2 = pair_tup[1]
+            lines.append(f'** INST{i_instance}: Constraint {ipair}, nodes {{{n1+1},{n2+1}}}')
+            lines.append(f'*Nset, nset=LAT{i_instance}-PBC_NODE_{ipair}, instance=INST{i_instance}-LAT')
+            lines.append(f'  {n1+1},')
+            lines.append(f'*Nset, nset=LAT{i_instance}-MIRROR_NODE_{ipair}, instance=INST{i_instance}-LAT')
+            lines.append(f'  {n2+1},')
+            # 3 rotations
+            for ideg in range(4,7):
+                lines.append(f'*Equation')
+                lines.append('2')
+                lines.append(f'LAT{i_instance}-MIRROR_NODE_{ipair}, {ideg}, 1.')
+                lines.append(f'LAT{i_instance}-PBC_NODE_{ipair}, {ideg}, -1.')
+            # 
+            dr = nodes[n2, :] - nodes[n1, :]
+            # active degrees of freedom in constraint
+            i_dr_nonzero = np.flatnonzero(np.abs(dr)>1e-3) 
+            nactive = i_dr_nonzero.shape[0]
+            assert nactive>0
+            # 3 displacements
+            for ideg in range(1,4):
+                lines.append(f'*Equation')
+                lines.append(f'{2+nactive}')
+                lines.append(f'LAT{i_instance}-MIRROR_NODE_{ipair}, {ideg}, 1.')
+                lines.append(f'LAT{i_instance}-PBC_NODE_{ipair}, {ideg}, -1.')
+                for jdeg in i_dr_nonzero+1:
+                    ddr = dr[jdeg-1]
+                    refptnum=1 if jdeg==ideg else 2
+                    refptdeg=jdeg if jdeg==ideg else ideg + jdeg - 2
+                    lines.append(f'INST{i_instance}-REF{refptnum}, {refptdeg}, {-ddr}')
+        lines.append('**')
+
     lines.append('*End Assembly')
     lines.append('**')
     lines.append('** STEPS')
@@ -165,8 +177,9 @@ def write_abaqus_inp(
         lines.append(f'*Step, name=Load-REF{load[0]}-dof{load[1]}, nlgeom=NO')
         lines.append('*Static')
         lines.append('1., 1., 1e-5, 1')
-        lines.append('*Boundary, OP=NEW')
-        lines.append(f'REF{load[0]}, {load[1]}, {load[1]}, {load[2]}')
+        for i_instance, _ in enumerate(strut_radii):
+            lines.append('*Boundary, OP=NEW')
+            lines.append(f'INST{i_instance}-REF{load[0]}, {load[1]}, {load[1]}, {load[2]}')
         lines.append('*Restart, write, frequency=0')
         # lines.append('*Output, field')
         # lines.append('*Node Output, nset=REF-PTS')

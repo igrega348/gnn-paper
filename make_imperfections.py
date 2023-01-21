@@ -28,19 +28,19 @@ cat = Catalogue.from_file('./filt_wind.lat', 0)
 #14 7000:7500
 #15 7500:8000
 #16 8000:
-num_cat = 5
-cat = cat[2500:3000]
+num_cat = 7
+cat = cat[3500:4000]
 
 MAX_TRY = 10
 IMP_KIND = 'sphere_surf'
 NUM_RELDENS = 10
 
-new_cat_name = f'imperf_cat_{num_cat}.lat'
+new_cat_name = f'C:/temp/gnn-paper/imperf_cat_{num_cat}.lat'
 new_cat_dict = dict()
 
 job_num = 0
 
-with tarfile.open(f'C:/temp/input_files_cat_{num_cat}.tar.gz', 'w:gz') as archive:
+with tarfile.open(f'C:/temp/gnn-paper/input_files_cat_{num_cat}.tar.gz', 'w:gz') as archive:
 
     for lat_data in tqdm(cat):
         lat_data.pop('edge_adjacency')
@@ -101,13 +101,14 @@ with tarfile.open(f'C:/temp/input_files_cat_{num_cat}.tar.gz', 'w:gz') as archiv
                 abq_input_lines = abaqus.write_abaqus_inp(
                     lat_mesh, 
                     loading=[(1,1,1.0),(1,2,1.0),(1,3,1.0),(2,1,0.5),(2,2,0.5),(2,3,0.5)],
+                    strut_radii=strut_radii,
                     metadata={
                         'Job name':f'{job_num:06d}',
                         'Lattice name':lat_imp.name,
                         'Base lattice':base_name,
-                        'Date':'2023-01-16', 
+                        'Date':'2023-01-18', 
                         'Relative densities': ', '.join([f'{rd:.4g}' for rd in relative_densities]),
-                        'Strut radii': ', '.join([f'{r:.4g}' for r in strut_radii]),
+                        'Strut radii': ', '.join([f'{sr:.4g}' for sr in strut_radii]),
                         'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
                         'Description':f'Imperfection level {imperfection_level} with various relative densities',
                         'Imperfection level':f'{imperfection_level}',
