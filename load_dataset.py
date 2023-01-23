@@ -26,7 +26,7 @@
 # %%
 from data import GLAMM_rhotens_Dataset as GLAMM_Dataset
 dataset = GLAMM_Dataset(
-    'C:/temp/gnn-paper-data/GLAMMDset',
+    root='C:/temp/gnn-paper-data/GLAMMDset',
     catalogue_path='C:/temp/gnn-paper-data/train.lat',
     dset_fname='train.pt',
     n_reldens=10,

@@ -28,8 +28,8 @@ cat = Catalogue.from_file('./filt_wind.lat', 0)
 #14 7000:7500
 #15 7500:8000
 #16 8000:
-num_cat = 7
-cat = cat[3500:4000]
+num_cat = 5
+cat = cat[2500:3000]
 
 MAX_TRY = 10
 IMP_KIND = 'sphere_surf'

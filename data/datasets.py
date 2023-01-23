@@ -201,7 +201,8 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
     """  # noqa: E501
 
 
-    def __init__(self, root: str, 
+    def __init__(self, 
+            root: str, 
             catalogue_path: str,
             dset_fname: str,
             representation: str = 'fund_inner',
