@@ -119,16 +119,7 @@ class Lattice:
             self.lattice_constants = np.array(lattice_constants, dtype=float)
         
         if 'compliance_tensors' in kwargs:
-            compliance_tensors_flat = kwargs['compliance_tensors']
-            compliance_tensors = dict()
-            for rel_dens in compliance_tensors_flat:
-                nums = compliance_tensors_flat[rel_dens]
-                assert len(nums)==21
-                S = np.zeros((6,6))
-                S[np.triu_indices(6)] = nums
-                S[np.triu_indices(6)[::-1]] = nums
-                compliance_tensors[rel_dens] = S
-            self.compliance_tensors = compliance_tensors
+            self.compliance_tensors = kwargs['compliance_tensors']
 
         if 'Youngs_moduli' in kwargs:
             self.Youngs_moduli = kwargs['Youngs_moduli']

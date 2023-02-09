@@ -315,7 +315,112 @@ def visualize_graph(
                     )
     plt.axis('off')
     return ax
+# %%
+def plotly_elasticity_surf(
+    S: np.ndarray, 
+    title: str='',
+    fig=None, subplot: Optional[dict] = None,
+    ):
+    assert S.shape==(3,3,3,3)
+        
+    u, v = np.mgrid[0:2*np.pi:100j, 0:np.pi:100j]
 
+
+    X = np.sin(v)*np.cos(u)
+    Y = np.sin(v)*np.sin(u)
+    Z = np.cos(v)
+
+    x = X.flatten()
+    y = Y.flatten()
+    z = Z.flatten()
+    pos = np.column_stack((x,y,z))
+
+    e = 1/np.einsum('ai,aj,ak,al,ijkl->a',pos,pos,pos,pos,S)
+
+    rows, cols = X.shape
+    indices = np.unravel_index(np.arange(len(e)), (rows, cols))
+    E = np.zeros_like(X)
+    E[indices] = e
+
+    R = E
+
+    X = R*np.sin(v)*np.cos(u)
+    Y = R*np.sin(v)*np.sin(u)
+    Z = R*np.cos(v)
+
+    if not isinstance(fig, go.Figure):
+        fig = go.Figure()
+    if isinstance(subplot, dict):
+        subplot_args = dict(
+                row=floor(subplot['index']/subplot['ncols']) + 1,
+                col=subplot['index']%subplot['ncols'] + 1
+        )
+    else:
+        subplot_args = {}
+
+    fig.add_trace(
+        go.Surface(x=X, y=Y, z=Z, surfacecolor=R),
+        **subplot_args
+    )
+
+    if isinstance(subplot, dict):
+        fig.layout.annotations[subplot['index']].update(text=title)
+    else:
+        fig.update_layout(title=title)
+    return fig
+
+def plotly_stiffness_surf(
+    C: np.ndarray, 
+    title: str='',
+    fig=None, subplot: Optional[dict] = None,
+    ):
+    assert C.shape==(3,3,3,3)
+        
+    u, v = np.mgrid[0:2*np.pi:100j, 0:np.pi:100j]
+
+
+    X = np.sin(v)*np.cos(u)
+    Y = np.sin(v)*np.sin(u)
+    Z = np.cos(v)
+
+    x = X.flatten()
+    y = Y.flatten()
+    z = Z.flatten()
+    pos = np.column_stack((x,y,z))
+
+    e = np.einsum('ai,aj,ak,al,ijkl->a',pos,pos,pos,pos,C)
+
+    rows, cols = X.shape
+    indices = np.unravel_index(np.arange(len(e)), (rows, cols))
+    E = np.zeros_like(X)
+    E[indices] = e
+
+    R = E
+
+    X = R*np.sin(v)*np.cos(u)
+    Y = R*np.sin(v)*np.sin(u)
+    Z = R*np.cos(v)
+
+    if not isinstance(fig, go.Figure):
+        fig = go.Figure()
+    if isinstance(subplot, dict):
+        subplot_args = dict(
+                row=floor(subplot['index']/subplot['ncols']) + 1,
+                col=subplot['index']%subplot['ncols'] + 1
+        )
+    else:
+        subplot_args = {}
+
+    fig.add_trace(
+        go.Surface(x=X, y=Y, z=Z, surfacecolor=R),
+        **subplot_args
+    )
+
+    if isinstance(subplot, dict):
+        fig.layout.annotations[subplot['index']].update(text=title)
+    else:
+        fig.update_layout(title=title)
+    return fig
 # %%
 def plot_surface_data(phi, th, val, ax=None, resolution=200j, clims=None):
     PHI, TH = np.mgrid[0:np.pi:resolution, 0:2*np.pi:resolution]

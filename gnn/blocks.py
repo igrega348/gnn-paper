@@ -334,6 +334,11 @@ class TensorProductInteractionBlock(torch.nn.Module):
             shared_weights=True
         )
 
+        # CHANGED
+        # self.skip_tp = o3.FullyConnectedTensorProduct(
+        #     self._irreps_out, '1x0e', self._irreps_out
+        # )
+
         self.reshape = reshape_irreps(self._irreps_out)
 
     @property
@@ -350,6 +355,7 @@ class TensorProductInteractionBlock(torch.nn.Module):
         edge_attrs: torch.Tensor, # [num_edges, @edge_attrs_irreps]
         edge_feats: torch.Tensor, # [num_edges, @edge_feats_irreps]
         edge_index: torch.Tensor, # [2, num_edges]
+        node_attrs: Optional[torch.Tensor] = None
     ) -> torch.Tensor: 
         sender, receiver = edge_index
         num_nodes = node_feats.shape[0]
@@ -362,6 +368,7 @@ class TensorProductInteractionBlock(torch.nn.Module):
         ) / self.agg_norm_const # [n_nodes, irreps]
         # TODO: try batchnorm
         message = self.linear(message)
+        # message = self.skip_tp(message, node_attrs) # CHANGED
         return (
             self.reshape(message),
             None, # no skip connection
@@ -388,7 +395,7 @@ class TensorProductResidualInteractionBlock(TensorProductInteractionBlock):
         )
         self.sc_irreps_out = sc_irreps_out
 
-        # add skip connection
+        # add skip connection # CHANGED
         self.linear_skip = o3.Linear(
             irreps_in=self._node_feats_irreps,
             irreps_out=self.sc_irreps_out,
@@ -396,17 +403,23 @@ class TensorProductResidualInteractionBlock(TensorProductInteractionBlock):
             shared_weights=True
         )
 
+        # self.skip_tp = o3.FullyConnectedTensorProduct(
+        #     self._node_feats_irreps, '1x0e', self.sc_irreps_out
+        # )
+
     def forward(
         self,
         node_feats: torch.Tensor, # [num_nodes, @node_feats_irreps]
         edge_attrs: torch.Tensor, # [num_edges, @edge_attrs_irreps]
         edge_feats: torch.Tensor, # [num_edges, @edge_feats_irreps]
         edge_index: torch.Tensor, # [2, num_edges]
+        node_attrs: Optional[torch.Tensor] = None
     ) -> torch.Tensor: 
         sender, receiver = edge_index
         num_nodes = node_feats.shape[0]
 
-        sc = self.linear_skip(node_feats) # skip connection
+        sc = self.linear_skip(node_feats) # skip connection # CHANGED
+        # sc = self.skip_tp(node_feats, node_attrs) # skip connection # CHANGED
         node_feats = self.linear_up(node_feats)
         tp_weights = self.conv_tp_weights(edge_feats)
         mji = self.conv_tp(node_feats[sender], edge_attrs, tp_weights)  

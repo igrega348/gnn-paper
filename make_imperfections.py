@@ -28,8 +28,8 @@ cat = Catalogue.from_file('./filt_wind.lat', 0)
 #14 7000:7500
 #15 7500:8000
 #16 8000:
-num_cat = 5
-cat = cat[2500:3000]
+num_cat = 3
+cat = cat[1500:2000]
 
 MAX_TRY = 10
 IMP_KIND = 'sphere_surf'
@@ -106,7 +106,7 @@ with tarfile.open(f'C:/temp/gnn-paper/input_files_cat_{num_cat}.tar.gz', 'w:gz')
                         'Job name':f'{job_num:06d}',
                         'Lattice name':lat_imp.name,
                         'Base lattice':base_name,
-                        'Date':'2023-01-18', 
+                        'Date':'2023-01-25', 
                         'Relative densities': ', '.join([f'{rd:.4g}' for rd in relative_densities]),
                         'Strut radii': ', '.join([f'{sr:.4g}' for sr in strut_radii]),
                         'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',

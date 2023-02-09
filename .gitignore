@@ -19,3 +19,7 @@ build/
 # WANDB
 wandb/
 lightning_logs/
+gnn-paper-v0
+
+figures/
+slides/
