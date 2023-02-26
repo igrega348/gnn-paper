@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import patches
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from matplotlib.collections import LineCollection
 import networkx as nx
@@ -272,16 +273,16 @@ def visualize_graph(
     edges_in = []
     edges_count = []
     for e in edges:
-        e_set = set(e)
-        if e_set in edges_in:
-            edges_count[edges_in.index(e_set)] += 1
+        e_sorted = sorted(e)
+        if e_sorted in edges_in:
+            edges_count[edges_in.index(e_sorted)] += 1
         else:
-            edges_in.append(e_set)
+            edges_in.append(e_sorted)
             edges_count.append(1)
     edges_tuples = []
-    for e_set in edges_in:
-        for i in range(edges_count[edges_in.index(e_set)]):
-            e = list(e_set)
+    for e_sorted in edges_in:
+        for i in range(edges_count[edges_in.index(e_sorted)]):
+            e = list(e_sorted)
             edges_tuples.append((e[0],e[1],{'r':i}))
     G = nx.Graph()
     G.add_nodes_from(np.arange(nodes.shape[0], dtype=int))
@@ -302,17 +303,22 @@ def visualize_graph(
     edges_count = []
     for j,e in enumerate(edges_tuples):
         ec="0"
-        if len(e)>2: r=0.3*e[2]['r']
-        else: r=0
-        ax.annotate("",
-                    xy=pos[e[0]], xycoords='data',
-                    xytext=pos[e[1]], textcoords='data',
-                    arrowprops=dict(arrowstyle="-", color=ec,
-                                    shrinkA=10, shrinkB=10,
-                                    patchA=None, patchB=None,
-                                    connectionstyle=f"arc3,rad=rrr".replace('rrr',str(r)),
-                                    ),
-                    )
+        if e[0]==e[1]:
+            c = [x+0.1 for x in pos[e[0]]]
+            circ = patches.Circle(xy=c, radius=0.1/np.sqrt(2), fc='none', ec='0')
+            ax.add_patch(circ)
+        else:
+            if len(e)>2: r=0.3*e[2]['r']
+            else: r=0
+            ax.annotate("",
+                        xy=pos[e[0]], xycoords='data',
+                        xytext=pos[e[1]], textcoords='data',
+                        arrowprops=dict(arrowstyle="-", color=ec,
+                                        shrinkA=10, shrinkB=10,
+                                        patchA=None, patchB=None,
+                                        connectionstyle=f"arc3,rad=rrr".replace('rrr',str(r)),
+                                        ),
+                        )
     plt.axis('off')
     return ax
 # %%

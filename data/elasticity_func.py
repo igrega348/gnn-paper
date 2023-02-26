@@ -226,7 +226,12 @@ def compliance_4th_order_to_Voigt( S : np.ndarray ):
     return S_2
 # %%
 def stiffness_4th_order_to_Voigt(C: np.ndarray) -> np.ndarray:
-    C_2 = np.zeros((6,6))
+    if C.ndim==5:
+        C_2 = np.zeros((C.shape[0], 6,6))
+    elif C.ndim==4:
+        C_2 = np.zeros((1,6,6))
+    else:
+        raise ValueError(f'Wrong shape of C: C.shape={C.shape}')
     for i in range(6):
         if i<3:
             a = b = i
@@ -245,10 +250,13 @@ def stiffness_4th_order_to_Voigt(C: np.ndarray) -> np.ndarray:
                 c = 0; d = 2
             else:
                 c = 0; d = 1
-            Cij = C[a,b,c,d] 
-            C_2[i,j] = Cij 
-            C_2[j,i] = Cij
-    return C_2
+            Cij = C[:,a,b,c,d] 
+            C_2[:,i,j] = Cij 
+            C_2[:,j,i] = Cij
+    if C.ndim==5:
+        return C_2
+    else:
+        return C_2[0,:,:]
 # %%
 def stiffness_Voigt_to_4th_order(C: np.ndarray):
     # convert C_ij to C_abcd

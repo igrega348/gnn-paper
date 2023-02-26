@@ -1,10 +1,12 @@
 from typing import Any, Optional, Tuple, Dict, Union
 from argparse import Namespace
 import time
+import logging
 
 import torch
 from torch_geometric.data import Batch
 import pytorch_lightning as pl
+from pytorch_lightning.utilities import rank_zero_info
 from e3nn import o3
 
 from .blocks import (
@@ -60,8 +62,9 @@ class LatticeGNN(pl.LightningModule):
                     edge_attrs_irreps=edge_attr_irreps,
                     edge_feats_irreps=edge_feats_irreps,
                     irreps_out=interaction_irreps,
-                    agg_norm_const=16,
-                    reduce=params.interaction_reduction
+                    agg_norm_const=params.agg_norm_const,
+                    reduce=params.interaction_reduction,
+                    bias=params.interaction_bias
                 )
                 prod = EquivariantProductBlock(
                     node_feats_irreps=inter.irreps_out,
@@ -77,8 +80,9 @@ class LatticeGNN(pl.LightningModule):
                     edge_feats_irreps=edge_feats_irreps,
                     irreps_out=interaction_irreps,
                     sc_irreps_out=hidden_irreps,
-                    agg_norm_const=16,
-                    reduce=params.interaction_reduction
+                    agg_norm_const=params.agg_norm_const,
+                    reduce=params.interaction_reduction,
+                    bias=params.interaction_bias
                 )
                 prod = EquivariantProductBlock(
                     node_feats_irreps=inter.irreps_out,
@@ -97,7 +101,11 @@ class LatticeGNN(pl.LightningModule):
             self.readouts.append(rout)
         
         self.pooling = GlobalSumHistoryPooling(reduce=params.global_reduction)
-
+        self.linear = o3.Linear(readout_irreps, readout_irreps, 
+            internal_weights=True, 
+            shared_weights=True,
+            biases=True
+        )
         self.fourth_order_expansion = OneTPReadoutBlock(
             irreps_in=readout_irreps,
             irreps_out=o3.Irreps('2x0e+2x2e+1x4e')
@@ -134,6 +142,7 @@ class LatticeGNN(pl.LightningModule):
         outputs = torch.stack(outputs, dim=-1)
 
         graph_ft = self.pooling(outputs, batch.batch, num_graphs)
+        graph_ft = self.linear(graph_ft)
         stiffness = self.fourth_order_expansion(graph_ft) # [num_]
 
         return {'stiffness': stiffness}
@@ -142,14 +151,42 @@ class LatticeGNN(pl.LightningModule):
         params = self.params
 
         if (params.optimizer).lower()=='adamw':
+            rank_zero_info('Setting optimizer AdamW')
             optimizer = torch.optim.AdamW(
-                self.parameters(), lr=params.lr, 
+                params=self.parameters(), lr=params.lr, 
+                betas=(params.beta1,0.999), eps=params.epsilon,
                 amsgrad=params.amsgrad, weight_decay=params.weight_decay,
             )
-        # elif (params.optimizer).lower()=='sgd':
-        #     optimizer = torch.optim.SGD(self.parameters())
+        elif (params.optimizer).lower()=='nadam':
+            rank_zero_info('Setting optimizer NAdam')
+            optimizer = torch.optim.NAdam(
+                params=self.parameters(), lr=params.lr, 
+                weight_decay=params.weight_decay,
+            )            
+        elif (params.optimizer).lower()=='sgd':
+            rank_zero_info('Setting optimizer SGD')
+            optimizer = torch.optim.SGD(
+                params=self.parameters(), lr=params.lr, 
+                momentum=params.momentum, nesterov=params.nesterov,
+                weight_decay=params.weight_decay,
+            )
 
-        return {"optimizer": optimizer}  
+        if not hasattr(params, 'scheduler') or not isinstance(params.scheduler, str):
+            lr_scheduler = None
+        elif (params.scheduler).lower()=="linearlr":
+            rank_zero_info('Setting scheduler LinearLR')
+            lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+                optimizer=optimizer, start_factor=1, end_factor=0.1,
+                total_iters=params.max_num_epochs
+            )
+
+        if lr_scheduler is not None:
+            return {"optimizer": optimizer, 'lr_scheduler':{
+                'scheduler': lr_scheduler,
+                'interval':'epoch', 'frequency':1
+            }}  
+        else:
+            return {"optimizer": optimizer}
 
     # def configure_optimizers(self):
        
@@ -235,11 +272,18 @@ class LatticeGNN(pl.LightningModule):
         loss = torch.nn.functional.smooth_l1_loss(
             self.loss_weights*output['stiffness'], self.loss_weights*batch['stiffness'], beta=1.0
         )
+        # calculate 'percentage' error for each row of the output
+        vals, _ = batch['stiffness'].abs().max(dim=1, keepdim=True)
+        error = torch.mean((output['stiffness']-batch['stiffness']).abs()/vals, dim=1)
+        train_err = torch.mean(error)
 
         self.log("loss", loss, 
             prog_bar=False, batch_size=batch.num_graphs,
             # on_step=False, on_epoch=True
             )
+        self.log('train_err', train_err, 
+            prog_bar=False, batch_size=batch.num_graphs, sync_dist=True
+        )
         self.log("lr", self.optimizers().param_groups[0]['lr'], 
                 prog_bar=False, batch_size=batch.num_graphs, 
                 on_epoch=True, on_step=False, sync_dist=True
@@ -253,11 +297,17 @@ class LatticeGNN(pl.LightningModule):
         loss = torch.nn.functional.smooth_l1_loss(
             output['stiffness'], batch['stiffness'], beta=1.0
         )
+        # calculate 'percentage' error for each row of the output
+        vals, _ = batch['stiffness'].abs().max(dim=1, keepdim=True)
+        error = torch.mean((output['stiffness']-batch['stiffness']).abs()/vals, dim=1)
+        val_err = torch.mean(error)
 
         self.log("val_loss", loss, 
-                prog_bar=True, batch_size=batch.num_graphs,
-                sync_dist=True
-                )
+            prog_bar=True, batch_size=batch.num_graphs, sync_dist=True
+        )
+        self.log('val_err', val_err, 
+            prog_bar=True, batch_size=batch.num_graphs, sync_dist=True
+        )
         return output['stiffness'], batch['stiffness']
 
     def predict_step(self, batch: Any, batch_idx: int = 0, dataloader_idx: int = 0) -> Tuple:

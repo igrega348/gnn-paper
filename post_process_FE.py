@@ -19,12 +19,12 @@ def check_data(data: dict) -> bool:
 # %%
 def main(cat_num: int):
     # cat_num = 6
-    input_cat_fn = f'C:/temp/gnn-paper/imperf_cat_{cat_num}.lat'
+    input_cat_fn = f'C:/temp/gnn-paper-newdata/imperf_cat_{cat_num}.lat'
     print('Loading catalogue from')
     print('\t', input_cat_fn)
     cat = Catalogue.from_file(input_cat_fn, 0)
     print(cat)
-    abq_archive_fn = f'C:/temp/gnn-paper/processed_data_{cat_num}.tar.gz'
+    abq_archive_fn = f'C:/temp/gnn-paper-newdata/processed_data_{cat_num}.tar.gz'
 
     updated_cat_dict = dict()
     failed = []
@@ -67,7 +67,7 @@ def main(cat_num: int):
 
     cat = Catalogue.from_dict(updated_cat_dict)
     print(cat)
-    cat.to_file(f'C:/temp/gnn-paper/cat_{cat_num}.lat')
+    cat.to_file(f'C:/temp/gnn-paper-newdata/cat_{cat_num}.lat')
 
 if __name__=="__main__":
     cat_num = int(sys.argv[1])

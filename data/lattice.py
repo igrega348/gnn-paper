@@ -354,7 +354,10 @@ class Lattice:
         )
         sum_edge_lengths = edge_lengths.sum()
 
-        uc_vol = self.calculate_UC_volume()
+        if coords=='reduced':
+            uc_vol = 1
+        else:
+            uc_vol = self.calculate_UC_volume()
 
         edge_radius = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
         return edge_radius

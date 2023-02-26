@@ -1,5 +1,7 @@
 import copy
 import logging
+from typing import Any
+import time
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,11 +11,8 @@ from pytorch_lightning.utilities import rank_zero_info
 import wandb
 
 class PrintTableMetrics(pl.Callback):
-    def __init__(self, log_metrics: list) -> None:
+    def __init__(self, log_metrics: list, every_n_steps: int = 1000, col_width: int = 10) -> None:
         super().__init__()
-
-        col_width = 10
-        s = "{:<{}}"
 
         header = []
         for metric in log_metrics:
@@ -21,18 +20,23 @@ class PrintTableMetrics(pl.Callback):
         if 'epoch' not in header:
             header.insert(0, "epoch")
         
-        n_cols = len(header)
+        self.every_n_steps = every_n_steps
+        self.format_str = '{' + ':<' + str(col_width) + '}'
         self.col_width = col_width
+        n_cols = len(header)
         total_width = col_width * n_cols + 3*n_cols
         self.total_width = total_width
         
         self.header = header
+        self._time_metrics = {}
 
     def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        s = "{:<{}}"
-        fields = [s.format(metric, self.col_width) for metric in self.header]
+        s = self.format_str
+        fields = [s.format(metric) for metric in self.header]
         line = " | ".join(fields) + "\n" + "-" * self.total_width
         rank_zero_info(line)
+        self._time_metrics['_last_step'] = trainer.global_step
+        self._time_metrics['_last_time'] = time.time()
 
     def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         line = "\n" + "-" * self.total_width
@@ -44,10 +48,31 @@ class PrintTableMetrics(pl.Callback):
         local_dict['epoch'] = trainer.current_epoch
         rank_zero_info(self._format_table(local_dict))
 
+    def on_train_batch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs: "STEP_OUTPUT", batch: Any, batch_idx: int) -> None:
+        if (trainer.global_step%self.every_n_steps)==0:
+            metrics_dict = copy.copy(trainer.callback_metrics)
+            local_dict = {key: metrics_dict[key].detach().cpu().item() for key in metrics_dict.keys()}
+            local_dict['step'] = trainer.global_step
+            lrs = [pg['lr'] for pg in pl_module.optimizers().param_groups]
+            lr = sum(lrs)/len(lrs)
+            local_dict['lr'] = lr
+            ##
+            tn = time.time()
+            step_now = trainer.global_step
+            steps_done = step_now - self._time_metrics['_last_step']
+            time_elapsed = tn - self._time_metrics['_last_time']
+            if steps_done>0:
+                step_per_time = steps_done/time_elapsed
+                local_dict['samples_per_time'] = step_per_time * batch.num_graphs
+            self._time_metrics['_last_time'] = tn
+            self._time_metrics['_last_step'] = step_now
+
+            rank_zero_info(self._format_table(local_dict))
+        
     
     def _format_table(self, metrics: dict) -> str:
         # Formatting
-        s = "{:<{}}"
+        s = self.format_str
         fields = []
         for key in self.header:
             if key in metrics:
@@ -55,9 +80,9 @@ class PrintTableMetrics(pl.Callback):
                     val = f'{metrics[key]:.6f}'
                 else:
                     val = metrics[key]
-                fields.append(s.format(val, self.col_width))
+                fields.append(s.format(val))
             else:
-                fields.append(s.format('', self.col_width))
+                fields.append(s.format(''))
         line =  " | ".join(fields)
         return line
 

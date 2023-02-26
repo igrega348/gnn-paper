@@ -7,7 +7,7 @@ from data import Catalogue
 # %%
 df = assemble_catalogue(
     num_base_lattices=9000,
-    imperfection_levels=[0.0,0.02,0.05],
+    imperfection_levels=[0.0,0.01,0.02,0.03,0.04,0.05,0.1],
     num_imperf_realisations=10,
     input_dir='C:/temp/gnn-paper-data',
     choose_base='first',
@@ -25,12 +25,12 @@ val_base_names = all_base_names[7000:]
 selected_df = df.loc[df['base_name'].isin(train_base_names), :]
 selected_lat_dict = selected_df.to_dict('index')
 new_cat = Catalogue.from_dict(selected_lat_dict)
-new_cat.to_file('C:/temp/gnn-paper-data/dset_7000_train.lat')
+new_cat.to_file('C:/temp/gnn-paper-data/Ldset_7000_train.lat')
 
 selected_df = df.loc[df['base_name'].isin(val_base_names), :]
 selected_lat_dict = selected_df.to_dict('index')
 new_cat = Catalogue.from_dict(selected_lat_dict)
-new_cat.to_file('C:/temp/gnn-paper-data/dset_1295_val.lat')
+new_cat.to_file('C:/temp/gnn-paper-data/Ldset_1295_val.lat')
 
 # %%
 # from data import GLAMM_rhotens_Dataset as GLAMM_Dataset

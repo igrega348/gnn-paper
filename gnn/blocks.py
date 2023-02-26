@@ -6,6 +6,7 @@ from torch_scatter import scatter
 from e3nn.nn import FullyConnectedNet, Gate
 from e3nn import o3
 from e3nn.util.jit import compile_mode
+from torch_geometric.utils import degree
 
 from .mace import (
     BesselBasis, 
@@ -14,6 +15,7 @@ from .mace import (
     tp_out_irreps_with_instructions,
     reshape_irreps
 )
+from .pna import SCALERS, AGGREGATORS
 
 ###################
 # Embedding blocks
@@ -286,8 +288,9 @@ class TensorProductInteractionBlock(torch.nn.Module):
         edge_attrs_irreps: o3.Irreps,
         edge_feats_irreps: o3.Irreps,
         irreps_out: o3.Irreps,
-        agg_norm_const: float,
-        reduce: str = 'sum'
+        agg_norm_const: Union[float, Dict[str, float]],
+        reduce: str = 'sum',
+        bias: bool = False,
     ) -> None:
         super().__init__()
         self._node_feats_irreps = node_feats_irreps
@@ -295,7 +298,7 @@ class TensorProductInteractionBlock(torch.nn.Module):
         self.edge_feats_irreps = edge_feats_irreps
         self._irreps_out = irreps_out
         self.agg_norm_const = agg_norm_const
-        self.reduce = reduce
+        self.reduce = reduce.lower()
 
         self.linear_up = o3.Linear(
             irreps_in=self._node_feats_irreps,
@@ -324,6 +327,16 @@ class TensorProductInteractionBlock(torch.nn.Module):
             [input_dim] + 3 * [64] + [self.conv_tp.weight_numel],
             torch.nn.SiLU(),
         )
+        # Try this initialization
+        # layer = torch.nn.Linear(64, self.conv_tp.weight_numel, bias=False)
+        # torch.nn.init.xavier_uniform_(layer.weight, gain=0.001)
+        # self.conv_tp_weights = torch.nn.Sequential(
+        #     torch.nn.Linear(input_dim, 64),
+        #     torch.nn.SiLU(),
+        #     torch.nn.Linear(64, 64),
+        #     torch.nn.SiLU(),
+        #     layer
+        # )
 
         # Linear
         irreps_mid = irreps_mid.simplify()
@@ -331,8 +344,12 @@ class TensorProductInteractionBlock(torch.nn.Module):
             irreps_in=irreps_mid, 
             irreps_out=self._irreps_out, 
             internal_weights=True, 
-            shared_weights=True
+            shared_weights=True,
+            biases=bias # try adding bias
         )
+
+        if self.reduce=='pna':
+            self.pna = PNASimple(irreps_mid, avg_deg=agg_norm_const)
 
         # CHANGED
         # self.skip_tp = o3.FullyConnectedTensorProduct(
@@ -363,9 +380,12 @@ class TensorProductInteractionBlock(torch.nn.Module):
         node_feats = self.linear_up(node_feats)
         tp_weights = self.conv_tp_weights(edge_feats)
         mji = self.conv_tp(node_feats[sender], edge_attrs, tp_weights)  
-        message = scatter(
-            src=mji, index=receiver, dim=0, dim_size=num_nodes, reduce=self.reduce
-        ) / self.agg_norm_const # [n_nodes, irreps]
+        if self.reduce=='pna':
+            message = self.pna(x=mji, index=receiver, dim_size=num_nodes)
+        else:
+            message = scatter(
+                src=mji, index=receiver, dim=0, dim_size=num_nodes, reduce=self.reduce
+            ) / self.agg_norm_const # [n_nodes, irreps]
         # TODO: try batchnorm
         message = self.linear(message)
         # message = self.skip_tp(message, node_attrs) # CHANGED
@@ -382,8 +402,9 @@ class TensorProductResidualInteractionBlock(TensorProductInteractionBlock):
         edge_feats_irreps: o3.Irreps,
         irreps_out: o3.Irreps,
         sc_irreps_out: o3.Irreps,
-        agg_norm_const: float,
-        reduce: str = 'sum'
+        agg_norm_const: Union[float, Dict[str, float]],
+        reduce: str = 'sum',
+        bias: bool = False,
     ) -> None:
         super().__init__(
             node_feats_irreps,
@@ -391,7 +412,8 @@ class TensorProductResidualInteractionBlock(TensorProductInteractionBlock):
             edge_feats_irreps,
             irreps_out,
             agg_norm_const,
-            reduce
+            reduce,
+            bias,
         )
         self.sc_irreps_out = sc_irreps_out
 
@@ -422,10 +444,13 @@ class TensorProductResidualInteractionBlock(TensorProductInteractionBlock):
         # sc = self.skip_tp(node_feats, node_attrs) # skip connection # CHANGED
         node_feats = self.linear_up(node_feats)
         tp_weights = self.conv_tp_weights(edge_feats)
-        mji = self.conv_tp(node_feats[sender], edge_attrs, tp_weights)  
-        message = scatter(
-            src=mji, index=receiver, dim=0, dim_size=num_nodes, reduce=self.reduce
-        ) / self.agg_norm_const # [n_nodes, irreps]
+        mji = self.conv_tp(node_feats[sender], edge_attrs, tp_weights) 
+        if self.reduce=='pna':
+            message = self.pna(x=mji, index=receiver, dim_size=num_nodes)
+        else:
+            message = scatter(
+                src=mji, index=receiver, dim=0, dim_size=num_nodes, reduce=self.reduce
+            ) / self.agg_norm_const # [n_nodes, irreps] 
         # TODO: try batchnorm
         message = self.linear(message)
         return (
@@ -457,3 +482,68 @@ class GlobalSumHistoryPooling(torch.nn.Module):
             reduce=self.reduce
         )
         return graph_ft # [irreps,]
+
+#####################
+# Aggregation blocks
+#####################
+
+class PNA(torch.nn.Module):
+    def __init__(self, irreps_in: o3.Irreps, avg_deg: Dict[str, float]) -> None:
+        super().__init__()
+        self.aggs = [AGGREGATORS[agg] for agg in ['mean','min','max','std']]
+        self.scalers = [SCALERS[scale] for scale in ['identity','amplification','attenuation']]
+        self.avg_deg = avg_deg
+
+        irreps_lin_in = o3.Irreps([(12*mul,(ir.l,ir.p)) for mul,ir in irreps_in])
+        self.post_pn = o3.Linear(irreps_in=irreps_lin_in, irreps_out=irreps_in)
+
+    def forward(self, x: torch.Tensor, index: torch.Tensor, dim_size: int) -> torch.Tensor:
+        outs = [aggr(x, index, dim_size) for aggr in self.aggs]
+        out = torch.stack(outs, dim=-1)
+
+        deg = degree(index, dim_size, dtype=x.dtype).view(-1, 1)
+        outs = []
+        for k in range(out.shape[-1]):
+            for scaler in self.scalers:
+                x = out[:,:,k]
+                outs.append(scaler(x, deg, self.avg_deg))
+        # outs = [scaler(out, deg, self.avg_deg) for scaler in self.scalers]
+        out = torch.cat(outs, dim=-1)
+
+        out = torch.flatten(out, start_dim=1)
+        out = self.post_pn(out)
+
+        return out
+
+class PNASimple(torch.nn.Module):
+    def __init__(self, irreps_in: o3.Irreps, avg_deg: Dict[str, float]) -> None:
+        super().__init__()
+        aggregs = ['mean', 'min', 'max']
+        # aggregs = ['mean','min','max','std']
+        # scalers = ['identity']
+        scalers = ['identity','amplification','attenuation']
+
+        self.norm_fn = o3.Norm(irreps_in, squared=True)
+        self.irreps_in = irreps_in
+        self.aggs = [AGGREGATORS[agg] for agg in aggregs]
+        self.scalers = [SCALERS[scale] for scale in scalers]
+        self.avg_deg = avg_deg
+
+        self.post_pn = torch.nn.Linear(len(aggregs)*len(scalers),1, bias=False)
+
+    def forward(self, x: torch.Tensor, index: torch.Tensor, dim_size: int) -> torch.Tensor:
+        norms = self.norm_fn(x)
+        outs = [aggr(x, index, dim_size, norms=norms, irreps=self.irreps_in) for aggr in self.aggs]
+        out = torch.stack(outs, dim=-1)
+
+        deg = degree(index, dim_size, dtype=x.dtype).view(-1, 1)
+        outs = []
+        for k in range(out.shape[-1]):
+            for scaler in self.scalers:
+                x = out[:,:,k]
+                outs.append(scaler(x, deg, self.avg_deg))
+        out = torch.stack(outs, dim=2)
+
+        out = self.post_pn(out)
+        out = out.squeeze(2)
+        return out

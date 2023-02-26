@@ -1,5 +1,6 @@
 from argparse import Namespace
 import logging
+from tqdm import tqdm
 
 import torch
 import pytorch_lightning as pl
@@ -11,6 +12,7 @@ from pytorch_lightning.callbacks import (
 ) 
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
+from torch_geometric.utils import degree
 from e3nn import o3
 from e3nn.io import CartesianTensor
 import wandb
@@ -70,18 +72,22 @@ def compute_avg_num_neighbors(
 
 def main() -> None:
     params = Namespace(
-        r_max=3, num_bessel=8, poly_cutoff=4, # Radial bessel embedding
         lmax=3, # spherical harmonics
         hidden_irreps='32x0e+32x1o+32x2e',
         readout_irreps='32x0e+32x1o+32x2e',
         correlation=3,
-        interaction_reduction='mean',
-        global_reduction='sum',
+        interaction_reduction='pna',
+        global_reduction='mean',
         message_passes=3,
+        optimizer='nadam',
+        weight_decay=0,
+        scheduler='linearlr',
+        max_num_epochs=5,
         lr=0.001,
+        interaction_bias=True,
     )
 
-    wandb_logger = WandbLogger(project="gnn-paper-v0", entity="ivan-grega", config=params)
+    # wandb_logger = WandbLogger(project="gnn-paper-v0", entity="ivan-grega", config=params)
     # wandb_logger = WandbLogger()
     # params.lr = wandb_logger.experiment.config.lr
     # params.message_passes = wandb_logger.experiment.config.message_passes
@@ -100,7 +106,7 @@ def main() -> None:
     el_tens = CartesianTensor('ijkl=jikl=ijlk=klij')
     train_dset.data.stiffness = train_dset.data.stiffness / train_dset.data.rel_dens.view(-1,1,1,1,1)
     normalization_factor = 2/torch.max(torch.abs(train_dset.data.stiffness))
-    print('Normalization factor')
+    print(f'Normalization factor {normalization_factor}')
     train_dset.data.stiffness = el_tens.from_cartesian(train_dset.data.stiffness*normalization_factor).float()
 
     train_loader = DataLoader(
@@ -129,6 +135,21 @@ def main() -> None:
         num_workers=4
     )
 
+    deg = torch.zeros(20, dtype=torch.long)
+    for data in tqdm(train_loader):
+        d = degree(data.edge_index[1], num_nodes=None, dtype=torch.long)
+        deg += torch.bincount(d, minlength=deg.numel())
+
+    deg = deg.to(torch.float)
+    total_no_vertices = deg.sum()
+    bin_degrees = torch.arange(len(deg))
+    avg_deg = {
+        'lin': ((bin_degrees * deg).sum() / total_no_vertices).item(),
+        'log': (((bin_degrees + 1).log() * deg).sum() / total_no_vertices).item(),
+        'exp': ((bin_degrees.exp() * deg).sum() / total_no_vertices).item(),
+    }
+
+    params.agg_norm_const = avg_deg
 
     # avg_num_neighbours = compute_avg_num_neighbors(train_loader)
     # print(f'Average number of neighbors: {avg_num_neighbours}')
@@ -138,21 +159,21 @@ def main() -> None:
 
 
     callbacks = [
-        ModelSummary(max_depth=2),
+        ModelSummary(max_depth=3),
         ModelCheckpoint(save_top_k=1, monitor='val_loss'),
-        TQDMProgressBar(refresh_rate=5),
-        # PrintTableMetrics(['epoch','loss','val_loss','eta'])
+        TQDMProgressBar(refresh_rate=1),
+        # PrintTableMetrics(['epoch','loss','val_loss','lr','eta'], every_n_steps=1)
     ]
     trainer = pl.Trainer(
         accelerator='auto',
-        max_epochs=3,
-        # max_steps=500,
+        # max_epochs=3,
+        max_steps=2,
         check_val_every_n_epoch=1,
         callbacks=callbacks,
         # enable_progress_bar=False,
         # gradient_clip_val=10,
         # gradient_clip_algorithm='norm',
-        logger=wandb_logger,
+        # logger=wandb_logger,
         log_every_n_steps=50
     )
 
