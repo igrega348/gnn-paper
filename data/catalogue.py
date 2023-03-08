@@ -1,5 +1,6 @@
 from typing import Dict, Iterable, List, Union
 import numpy as np
+from tqdm import trange
 
 class Catalogue:
     """Unit cell catalogue object.
@@ -32,10 +33,12 @@ class Catalogue:
     INDEXING: int
     iter: int
 
-    def __init__(self, data: dict, indexing: int) -> None:
+    def __init__(self, data: dict, indexing: int, **attrs) -> None:
         self.lines = data
         self.names = list(data.keys())
         self.INDEXING = indexing
+        for key in attrs:
+            setattr(self, key, attrs[key])
 
     def __len__(self) -> int:
         return len(self.names)
@@ -71,7 +74,7 @@ class Catalogue:
 
 
     @classmethod
-    def from_file(cls, fn: str, indexing: int) -> "Catalogue":
+    def from_file(cls, fn: str, indexing: int, progress: bool = False) -> "Catalogue":
         """Read catalogue from a file.
 
         Args:
@@ -90,8 +93,13 @@ class Catalogue:
         name = None
         start_line = None
         end_line = None
+
+        if progress:
+            itr = trange(len(lines), desc=f'Loading catalogue {fn}')
+        else:
+            itr = range(len(lines))
     
-        for i_line in range(len(lines)):
+        for i_line in itr:
             line = lines[i_line]
 
             if line.startswith('Name:'):
@@ -117,7 +125,8 @@ class Catalogue:
             text = lines[line_ranges[name]]
             data[name] = text
         
-        return cls(data=data, indexing=indexing)
+        attrs = {'fn':fn}
+        return cls(data=data, indexing=indexing, **attrs)
 
     @classmethod
     def from_dict(cls, lattice_dicts: Dict[str, Dict]) -> "Catalogue":

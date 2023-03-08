@@ -23,7 +23,9 @@ def get_common_normal_guess(nodes : np.ndarray, edges : np.ndarray):
 def write_abaqus_inp(
     lat: "Lattice", loading : List[Tuple], 
     strut_radii: Iterable,
-    metadata : Dict[str, str], fname : Optional[str] = None
+    metadata : Dict[str, str], 
+    fname : Optional[str] = None,
+    element_type: Optional[str] = 'B33',
     ):
     """Write abaqus input script for a specific lattice and loading 
 
@@ -74,7 +76,7 @@ def write_abaqus_inp(
         lines.append(f'{k+1}, {node[0]:.8g}, {node[1]:.8g}, {node[2]:.8g}')
 
     lines.append('**')
-    lines.append(f'*Element, type=B33, elset=FULL_LATTICE')
+    lines.append(f'*Element, type={element_type}, elset=FULL_LATTICE')
     for k,edge in enumerate(edges):
         lines.append(f'{k+1}, {edge[0]+1}, {edge[1]+1}')
 

@@ -20,6 +20,36 @@ from .pna import SCALERS, AGGREGATORS
 ###################
 # Embedding blocks
 ###################
+class CompleteGraph:
+    """Based on L45 Practical 2
+    This transform adds all pairwise edges into the edge index per data sample, 
+    i.e. it builds a fully connected or complete graph
+    """
+    def __call__(self, edge_index, edge_feats, edge_attr, num_nodes):
+        device = edge_index.device
+
+        row = torch.arange(num_nodes, dtype=torch.long, device=device)
+        col = torch.arange(num_nodes, dtype=torch.long, device=device)
+
+        row = row.view(-1, 1).repeat(1, num_nodes).view(-1)
+        col = col.repeat(num_nodes)
+        _edge_index = torch.stack([row, col], dim=0)
+        
+        idx = edge_index[0] * num_nodes + edge_index[1]
+
+        size = list(edge_attr.size())
+        size[0] = num_nodes * num_nodes
+        _edge_attr = edge_attr.new_zeros(size)
+        _edge_attr[idx] = edge_attr
+
+        size = list(edge_feats.size())
+        size[0] = num_nodes * num_nodes
+        _edge_feats = edge_feats.new_zeros(size)
+        _edge_feats[idx] = edge_feats
+
+        return _edge_index, _edge_feats, _edge_attr
+
+
 class RepeatNodeEmbedding(torch.nn.Module):
     def __init__(self, num_repeats: int) -> None:
         super().__init__()
@@ -323,20 +353,20 @@ class TensorProductInteractionBlock(torch.nn.Module):
 
         # Convolution weights
         input_dim = self.edge_feats_irreps.num_irreps
-        self.conv_tp_weights = FullyConnectedNet(
-            [input_dim] + 3 * [64] + [self.conv_tp.weight_numel],
-            torch.nn.SiLU(),
-        )
-        # Try this initialization
-        # layer = torch.nn.Linear(64, self.conv_tp.weight_numel, bias=False)
-        # torch.nn.init.xavier_uniform_(layer.weight, gain=0.001)
-        # self.conv_tp_weights = torch.nn.Sequential(
-        #     torch.nn.Linear(input_dim, 64),
+        # self.conv_tp_weights = FullyConnectedNet(
+        #     [input_dim] + 3 * [64] + [self.conv_tp.weight_numel],
         #     torch.nn.SiLU(),
-        #     torch.nn.Linear(64, 64),
-        #     torch.nn.SiLU(),
-        #     layer
         # )
+        # Try this initialization - includes bias term
+        layer = torch.nn.Linear(64, self.conv_tp.weight_numel, bias=False)
+        torch.nn.init.xavier_uniform_(layer.weight, gain=1)
+        self.conv_tp_weights = torch.nn.Sequential(
+            torch.nn.Linear(input_dim, 64),
+            torch.nn.SiLU(),
+            torch.nn.Linear(64, 64),
+            torch.nn.SiLU(),
+            layer
+        )
 
         # Linear
         irreps_mid = irreps_mid.simplify()

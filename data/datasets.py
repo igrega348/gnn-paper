@@ -19,7 +19,6 @@ from torch_geometric.data import (
     extract_gz,
 )
 
-from .lattice import Lattice
 from .catalogue import Catalogue
 from . import elasticity_func
 

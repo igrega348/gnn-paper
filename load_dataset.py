@@ -8,12 +8,12 @@ from data import Catalogue
 df = assemble_catalogue(
     num_base_lattices=9000,
     imperfection_levels=[0.0,0.01,0.02,0.03,0.04,0.05,0.1],
-    num_imperf_realisations=10,
+    num_imperf_realisations=1,
     input_dir='C:/temp/gnn-paper-data',
     choose_base='first',
     choose_imperf='first',
-    # output_fn='C:/temp/gnn-paper-data/presentation.lat',
-    return_df=True
+    output_fn='C:/temp/gnn-paper-data/small.lat',
+    # return_df=True
 )
 # %%
 all_base_names = df['base_name'].unique()

@@ -19,12 +19,12 @@ def check_data(data: dict) -> bool:
 # %%
 def main(cat_num: int):
     # cat_num = 6
-    input_cat_fn = f'C:/temp/gnn-paper-newdata/imperf_cat_{cat_num}.lat'
+    input_cat_fn = f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/imperf_cat_{cat_num}.lat'
     print('Loading catalogue from')
     print('\t', input_cat_fn)
     cat = Catalogue.from_file(input_cat_fn, 0)
     print(cat)
-    abq_archive_fn = f'C:/temp/gnn-paper-newdata/processed_data_{cat_num}.tar.gz'
+    abq_archive_fn = f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/processed_data_{cat_num}.tar.gz'
 
     updated_cat_dict = dict()
     failed = []
@@ -45,15 +45,19 @@ def main(cat_num: int):
 
                 uc_volume = float(sim_dict['Unit cell volume'])
                 rel_dens = float(data['Relative density'])
+                print(uc_volume)
                 
                 if not check_data(data):
                     failed.append(name)
                     continue
 
                 S = abaqus.calculate_compliance_tensor(data, uc_volume)
+                
                 # symmetrise
                 S = 0.5*(S + np.transpose(S, (2,3,0,1)))
                 S = elasticity_func.compliance_4th_order_to_Voigt(S)
+                if rel_dens>0.05:
+                    print(S)
 
                 compliance_tensors[rel_dens] = S
 
@@ -67,8 +71,11 @@ def main(cat_num: int):
 
     cat = Catalogue.from_dict(updated_cat_dict)
     print(cat)
-    cat.to_file(f'C:/temp/gnn-paper-newdata/cat_{cat_num}.lat')
-
+    cat.to_file(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/cat_{cat_num}.lat')
+# %%
 if __name__=="__main__":
-    cat_num = int(sys.argv[1])
-    main(cat_num)
+    # cat_num = (sys.argv[1])
+    # cat_num = int(sys.argv[1])
+    # main(cat_num)
+    main('mon')
+# %%
