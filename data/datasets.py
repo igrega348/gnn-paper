@@ -2,9 +2,10 @@ import os
 import os.path as osp
 import shutil
 import sys
-from typing import Callable, List, Optional, Union, Iterable
+from typing import Callable, List, Optional, Union, Iterable, Tuple
 from random import shuffle
 import logging
+from multiprocessing import Pool
 
 import numpy as np
 import numpy.typing as npt
@@ -74,6 +75,13 @@ def relabel_edges(edges: npt.NDArray, edge_map: npt.NDArray):
     new_edges = np.row_stack(new_edges)
     return new_edges
 
+def _load_cat_file(target: Tuple[str, List]):
+    fn, imperfection_levels = target
+    logging.info(f'Loading dataset {fn}')
+    cat = Catalogue.from_file(fn, 0)
+    loc_df = pd.DataFrame(cat)
+    return loc_df[loc_df['imperfection_level'].astype(float).isin(imperfection_levels)]
+
 def assemble_catalogue(
     num_base_lattices: int,
     imperfection_levels: Iterable,
@@ -82,26 +90,33 @@ def assemble_catalogue(
     choose_base: str = 'first',
     choose_imperf: str = 'first',
     output_fn: Optional[str] = None,
-    return_df: bool = False
+    return_df: bool = False,
+    multiprocessing: Optional[Union[bool, int]] = False,
 ) -> None:
     cat_fns = []
     for fn in os.listdir(input_dir):
         if fn.startswith('cat'):
-            cat_fns.append(fn)
+            cat_fns.append(osp.join(input_dir, fn))
 
     imperfection_levels = [float(il) for il in imperfection_levels]
     
-
-    df = pd.DataFrame()
-    for i_cat, fn in enumerate(cat_fns):
-        logging.info(f'Loading dataset {fn}')
-        cat = Catalogue.from_file(osp.join(input_dir, fn), 0)
-        loc_df = pd.DataFrame(cat)
-        # return loc_df
-        df = pd.concat(
-            [df, loc_df[loc_df['imperfection_level'].astype(float).isin(imperfection_levels)]], 
-            axis=0
-        )
+    if (not multiprocessing) or (multiprocessing<2):
+        df = pd.DataFrame()
+        for i_cat, fn in enumerate(cat_fns):
+            logging.info(f'Loading dataset {fn}')
+            cat = Catalogue.from_file(fn, 0)
+            loc_df = pd.DataFrame(cat)
+            df = pd.concat(
+                [df, loc_df[loc_df['imperfection_level'].astype(float).isin(imperfection_levels)]], 
+                axis=0
+            )
+    else:
+        assert isinstance(multiprocessing, int), "multiprocessing has to be boolean or integer"
+        targets = [(fn, imperfection_levels) for fn in cat_fns]
+        with Pool(processes=multiprocessing) as p:
+            dfs = p.map(_load_cat_file, targets)
+        df = pd.concat(dfs, axis=0)
+        del dfs
 
     uq_base_names = df['base_name'].unique()
     if choose_base=='first':
@@ -131,6 +146,8 @@ def assemble_catalogue(
         imp_totals = df.groupby(by='imp_name')['imperf_count'].max() + 1
         selection_mask = (df['imperf_count'] >= imp_totals.loc[df['imp_name']].values - num_imperf_realisations)
         selected_df = df.loc[selection_mask, :]
+    else:
+        raise ValueError('choose_imperf has to be `first` or `last`')
     
     logging.info(f'Selected {selected_df.shape[0]} lattices')
     
@@ -224,6 +241,8 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
             self.reldens_slice = slice(None, n_reldens, 1)
         elif choose_reldens=='last':
             self.reldens_slice = slice(-n_reldens, None, 1)
+        elif choose_reldens=='half':
+            self.reldens_slice = slice(None, 2*n_reldens, 2)
         else:
             raise ValueError(f'choose_reldens `{choose_reldens}` not recognised')
 

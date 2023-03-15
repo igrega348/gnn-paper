@@ -33,14 +33,14 @@ num_cat = 'mon'
 
 MAX_TRY = 10
 IMP_KIND = 'sphere_surf'
-NUM_RELDENS = 10
+NUM_RELDENS = 1
 
-new_cat_name = f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/imperf_cat_{num_cat}.lat'
+new_cat_name = f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/imperf1_cat_{num_cat}.lat'
 new_cat_dict = dict()
 
-job_num = 0
+job_num = 1
 
-with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/input_files_cat_{num_cat}.tar.gz', 'w:gz') as archive:
+with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/input_files1_cat_{num_cat}.tar.gz', 'w:gz') as archive:
 
     for name in tqdm(['mon_Z06.0_E917']):
     # for lat_data in tqdm(cat):
@@ -83,7 +83,8 @@ with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_
                     print(f'Lattice {lat.name} failed')
                     break
 
-                relative_densities = 0.001 + 0.05*np.linspace(0,1,NUM_RELDENS)
+                # relative_densities = 0.001 + 0.05*np.linspace(0,1,NUM_RELDENS)
+                relative_densities = [0.051]
                 # relative_densities = 0.001 + 0.05*np.random.rand(NUM_RELDENS) MODIFIED
                 relative_densities.sort()
                 strut_radii = [lat_imp.calculate_edge_radius(rel_dens) for rel_dens in relative_densities]
@@ -100,17 +101,17 @@ with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_
 
                 new_cat_dict[lat_imp.name] = lat_dict
 
-                lat_mesh = lat_imp.refine_mesh(0.2, 4)
+                # lat_mesh = lat_imp.refine_mesh(0.2, 4)
                 
-                abq_input_lines = abaqus.write_abaqus_inp(
-                    lat_mesh, 
+                abq_input_lines = abaqus.write_abaqus_inp_normals(
+                    lat_imp, 
                     loading=[(1,1,1.0),(1,2,1.0),(1,3,1.0),(2,1,0.5),(2,2,0.5),(2,3,0.5)],
                     strut_radii=strut_radii,
                     metadata={
                         'Job name':f'{job_num:06d}',
                         'Lattice name':lat_imp.name,
                         'Base lattice':base_name,
-                        'Date':'2023-03-06', 
+                        'Date':'2023-03-09', 
                         'Relative densities': ', '.join([f'{rd:.4g}' for rd in relative_densities]),
                         'Strut radii': ', '.join([f'{sr:.4g}' for sr in strut_radii]),
                         'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',

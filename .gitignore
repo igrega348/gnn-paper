@@ -24,3 +24,8 @@ gnn-paper-v0
 figures/
 slides/
 explore/
+GLAMMDset*
+
+post_process_FE_legacy.py
+make_imperfections_debug.py
+make_octet_rot.py
