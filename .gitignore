@@ -24,8 +24,12 @@ gnn-paper-v0
 figures/
 slides/
 explore/
+hyperparam_serach/
 GLAMMDset*
 
 post_process_FE_legacy.py
+post_process_FE_debug.py
 make_imperfections_debug.py
 make_octet_rot.py
+tiny_dset*
+try*

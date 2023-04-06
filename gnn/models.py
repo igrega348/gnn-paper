@@ -2,150 +2,46 @@ from typing import Any, Optional, Tuple, Dict, Union
 from argparse import Namespace
 import time
 import logging
+from math import sqrt
 
 import torch
+from torch_scatter import scatter
 from torch_geometric.data import Batch
 import pytorch_lightning as pl
 from pytorch_lightning.utilities import rank_zero_info
 from e3nn import o3
+from e3nn.nn import BatchNorm, Dropout, FullyConnectedNet
+from e3nn.math import soft_one_hot_linspace
+from e3nn.io import CartesianTensor
 
 from .blocks import (
     RepeatNodeEmbedding,
     RadialEmbeddingBlock,
     FourierBasisEmbeddingBlock,
+    GraphAttention,
+    CGCLayer,
+    MACELayer,
     GeneralLinearReadoutBlock,
+    VectorNormSelection,
+    NodeConnectivityEmbedding,
     GeneralNonLinearReadoutBlock,
     TensorProductInteractionBlock,
     TensorProductResidualInteractionBlock,
     EquivariantProductBlock,
     OneTPReadoutBlock,
-    GlobalSumHistoryPooling
+    GlobalSumHistoryPooling,
+    GlobalElementwisePooling
 )
 from .mace import get_edge_vectors_and_lengths
 
-class LatticeGNN(pl.LightningModule):
+class BaseModel(pl.LightningModule):
     _time_metrics: Dict
 
-    def __init__(
-        self,
-        params: Namespace, 
-        *args: Any, 
-        **kwargs: Any
-    ) -> "LatticeGNN":
+    def __init__(self, params:Namespace, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.params = params
-
-        hidden_irreps = o3.Irreps(params.hidden_irreps)
-
-        self.register_buffer('loss_weights', torch.ones((1,21)))
-
-        self.node_ft_embedding = RepeatNodeEmbedding(int(hidden_irreps.count(o3.Irrep(0,1))))
-        self.radial_embedding = FourierBasisEmbeddingBlock(3)
-        node_ft_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
-        edge_feats_irreps = o3.Irreps(f"{self.radial_embedding.out_dim+3}x0e")
-        edge_attr_irreps = o3.Irreps.spherical_harmonics(params.lmax)
-        self.spherical_harmonics = o3.SphericalHarmonics(
-            edge_attr_irreps,
-            normalize=True, normalization='component'
-        )
-        num_features = hidden_irreps.count(o3.Irrep(0, 1))
-        interaction_irreps = (edge_attr_irreps * num_features).sort()[0].simplify()
-        readout_irreps = o3.Irreps(params.readout_irreps)
-
-        self.interactions = torch.nn.ModuleList()
-        self.products = torch.nn.ModuleList()
-        self.readouts = torch.nn.ModuleList()
-        for i in range(params.message_passes):
-            if i==0:
-                inter = TensorProductInteractionBlock(
-                    node_feats_irreps=node_ft_irreps,
-                    edge_attrs_irreps=edge_attr_irreps,
-                    edge_feats_irreps=edge_feats_irreps,
-                    irreps_out=interaction_irreps,
-                    agg_norm_const=params.agg_norm_const,
-                    reduce=params.interaction_reduction,
-                    bias=params.interaction_bias
-                )
-                prod = EquivariantProductBlock(
-                    node_feats_irreps=inter.irreps_out,
-                    target_irreps=hidden_irreps,
-                    correlation=params.correlation,
-                    use_sc=False
-                )
-                rout = None 
-            else:
-                inter = TensorProductResidualInteractionBlock(
-                    node_feats_irreps=hidden_irreps,
-                    edge_attrs_irreps=edge_attr_irreps,
-                    edge_feats_irreps=edge_feats_irreps,
-                    irreps_out=interaction_irreps,
-                    sc_irreps_out=hidden_irreps,
-                    agg_norm_const=params.agg_norm_const,
-                    reduce=params.interaction_reduction,
-                    bias=params.interaction_bias
-                )
-                prod = EquivariantProductBlock(
-                    node_feats_irreps=inter.irreps_out,
-                    target_irreps=hidden_irreps,
-                    correlation=params.correlation,
-                    use_sc=True
-                )
-                rout = GeneralNonLinearReadoutBlock(
-                    irreps_in=hidden_irreps,
-                    irreps_out=readout_irreps,
-                    hidden_irreps=readout_irreps,
-                    gate=torch.nn.functional.silu,
-                )
-            self.interactions.append(inter)
-            self.products.append(prod)
-            self.readouts.append(rout)
-        
-        self.pooling = GlobalSumHistoryPooling(reduce=params.global_reduction)
-        self.linear = o3.Linear(readout_irreps, readout_irreps, 
-            internal_weights=True, 
-            shared_weights=True,
-            biases=True
-        )
-        self.fourth_order_expansion = OneTPReadoutBlock(
-            irreps_in=readout_irreps,
-            irreps_out=o3.Irreps('2x0e+2x2e+1x4e')
-        )
-
-        self.save_hyperparameters()
         self._time_metrics = {}
 
-    def forward(
-        self,
-        batch: Batch
-    ) -> Dict:
-        
-        num_graphs = batch.num_graphs
-        edge_index = batch.edge_index
-        node_ft = self.node_ft_embedding(batch.node_attrs)
-        vectors, lengths = get_edge_vectors_and_lengths(
-            positions=batch.positions, edge_index=edge_index, shifts=batch.shifts
-        )
-        edge_length_embedding = self.radial_embedding(lengths)
-        edge_radii = batch.edge_attr
-        edge_feats = torch.cat(
-            (edge_length_embedding, edge_radii, 10*edge_radii.pow(2), 100*edge_radii.pow(3)), 
-            dim=1
-        )
-        edge_attrs = self.spherical_harmonics(vectors)
-        
-        outputs = []
-        for interaction, product, readout in zip(self.interactions, self.products, self.readouts):
-            node_ft, sc = interaction(node_ft, edge_attrs, edge_feats, edge_index)
-            node_ft = product(node_ft, sc)
-            if readout is not None:
-                outputs.append(readout(node_ft))
-        outputs = torch.stack(outputs, dim=-1)
-
-        graph_ft = self.pooling(outputs, batch.batch, num_graphs)
-        graph_ft = self.linear(graph_ft)
-        stiffness = self.fourth_order_expansion(graph_ft) # [num_]
-
-        return {'stiffness': stiffness}
 
     def configure_optimizers(self):
         params = self.params
@@ -161,6 +57,12 @@ class LatticeGNN(pl.LightningModule):
             rank_zero_info('Setting optimizer NAdam')
             optimizer = torch.optim.NAdam(
                 params=self.parameters(), lr=params.lr, 
+                weight_decay=params.weight_decay,
+            )
+        elif (params.optimizer).lower()=='radam':
+            rank_zero_info('Setting optimizer RAdam')
+            optimizer = torch.optim.RAdam(
+                params=self.parameters(), lr=params.lr, betas=(params.beta1,0.999),
                 weight_decay=params.weight_decay,
             )            
         elif (params.optimizer).lower()=='sgd':
@@ -179,6 +81,12 @@ class LatticeGNN(pl.LightningModule):
                 optimizer=optimizer, start_factor=1, end_factor=0.1,
                 total_iters=params.max_num_epochs
             )
+        elif (params.scheduler).lower()=="steplr":
+            rank_zero_info('Setting scheduler StepLR')
+            lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, params.lr_step_size, gamma=0.5)
+        elif (params.scheduler).lower()=="multisteplr":
+            rank_zero_info('Setting scheduler MultiStepLR')
+            lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=params.lr_milestones, gamma=0.2)
 
         if lr_scheduler is not None:
             return {"optimizer": optimizer, 'lr_scheduler':{
@@ -188,90 +96,13 @@ class LatticeGNN(pl.LightningModule):
         else:
             return {"optimizer": optimizer}
 
-    # def configure_optimizers(self):
-       
-    #     args = self.params
-
-    #     decay_interactions = {}
-    #     no_decay_interactions = {}
-    #     for name, param in self.interactions.named_parameters():
-    #         if "linear.weight" in name or "skip_tp_full.weight" in name:
-    #             decay_interactions[name] = param
-    #         else:
-    #             no_decay_interactions[name] = param
-
-    #     param_options = dict(
-    #     params=[
-    #             {
-    #                 "name": "interactions_decay",
-    #                 "params": list(decay_interactions.values()),
-    #                 "weight_decay": args.weight_decay,
-    #             },
-    #             {
-    #                 "name": "interactions_no_decay",
-    #                 "params": list(no_decay_interactions.values()),
-    #                 "weight_decay": 0.0,
-    #             },
-    #             {
-    #                 "name": "products",
-    #                 "params": self.products.parameters(),
-    #                 "weight_decay": args.weight_decay,
-    #             },
-    #             {
-    #                 "name": "readouts",
-    #                 "params": self.readouts.parameters(),
-    #                 "weight_decay": 0.0,
-    #             },
-    #             {
-    #                 "name": "fourth_order_expansion",
-    #                 "params": self.fourth_order_expansion.parameters(),
-    #                 "weight_decay": 0.0,
-    #             }
-    #         ],
-    #         lr=args.lr,
-    #         amsgrad=args.amsgrad,
-    #     )
-   
-    #     if args.optimizer == "adamw":
-    #         optimizer = torch.optim.AdamW(**param_options)
-    #     else:
-    #         optimizer = torch.optim.Adam(**param_options)
-
-    #     if args.scheduler == "ExponentialLR":
-    #         lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
-    #             optimizer=optimizer, gamma=args.lr_scheduler_gamma
-    #         )
-    #     elif args.scheduler == "ReduceLROnPlateau":
-    #         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    #             optimizer=optimizer,
-    #             factor=args.lr_factor,
-    #             patience=args.scheduler_patience,
-    #         )
-    #     elif args.scheduler == "CosineAnnealing":
-    #         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-    #             optimizer=optimizer,
-    #             T_0=20,
-    #             eta_min=0.0001
-    #         )
-    #     else:
-    #         raise RuntimeError(f"Unknown scheduler: '{args.scheduler}'")
-        
-    #     if args.scheduler == "ReduceLROnPlateau":
-    #         return {"optimizer": optimizer, 
-    #                     "lr_scheduler": {
-    #                         "scheduler": lr_scheduler,
-    #                         "monitor": "val_loss",
-    #                     }
-    #                 }
-    #     else:
-    #         return {"optimizer": optimizer, "scheduler": lr_scheduler}  
-
     def training_step(self, batch, batch_idx):
         output = self(batch)
 
-        loss = torch.nn.functional.smooth_l1_loss(
-            self.loss_weights*output['stiffness'], self.loss_weights*batch['stiffness'], beta=1.0
+        loss = torch.nn.functional.mse_loss(
+            self.loss_weights*output['stiffness'], self.loss_weights*batch['stiffness']
         )
+
         # calculate 'percentage' error for each row of the output
         vals, _ = batch['stiffness'].abs().max(dim=1, keepdim=True)
         error = torch.mean((output['stiffness']-batch['stiffness']).abs()/vals, dim=1)
@@ -294,8 +125,8 @@ class LatticeGNN(pl.LightningModule):
     def validation_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor]:
         output = self(batch)
 
-        loss = torch.nn.functional.smooth_l1_loss(
-            output['stiffness'], batch['stiffness'], beta=1.0
+        loss = torch.nn.functional.mse_loss(
+            self.loss_weights*output['stiffness'], self.loss_weights*batch['stiffness']
         )
         # calculate 'percentage' error for each row of the output
         vals, _ = batch['stiffness'].abs().max(dim=1, keepdim=True)
@@ -345,3 +176,522 @@ class LatticeGNN(pl.LightningModule):
         self.log('step_per_time', 1/time_per_step_epoch,
                 prog_bar=False, sync_dist=True
                 )
+
+
+class LatticeGNN(BaseModel):
+
+    def __init__(
+        self,
+        params: Namespace, 
+        *args: Any, 
+        **kwargs: Any
+    ) -> "LatticeGNN":
+        super().__init__(params, *args, **kwargs)
+        self.params = params
+
+        hidden_irreps = o3.Irreps(params.hidden_irreps)
+
+        self.register_buffer('loss_weights', 10*torch.ones((1,21)))     
+        
+        self.node_ft_embedding = torch.nn.Linear(in_features=1, out_features=hidden_irreps.count(o3.Irrep(0,1)))
+        self.number_of_edge_basis = 6
+        node_ft_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
+        edge_feats_irreps = o3.Irreps(f"{self.number_of_edge_basis*2}x0e")
+        edge_attr_irreps = o3.Irreps.spherical_harmonics(params.lmax)
+        self.spherical_harmonics = o3.SphericalHarmonics(
+            edge_attr_irreps,
+            normalize=True, normalization='component'
+        )
+        num_features = hidden_irreps.count(o3.Irrep(0, 1))
+        interaction_irreps = (edge_attr_irreps * num_features).sort()[0].simplify()
+        readout_irreps = o3.Irreps(params.readout_irreps)
+
+        self.linear_skip = o3.Linear(
+                irreps_in=hidden_irreps,
+                irreps_out=hidden_irreps,
+                internal_weights=True,
+                shared_weights=True
+            )
+
+        self.gnn_layers = torch.nn.ModuleList([
+            MACELayer(node_ft_irreps, edge_attr_irreps, edge_feats_irreps, interaction_irreps, hidden_irreps, params.agg_norm_const, params.interaction_reduction, True, params.correlation),
+            MACELayer(hidden_irreps, edge_attr_irreps, edge_feats_irreps, interaction_irreps, hidden_irreps, params.agg_norm_const, params.interaction_reduction, True, params.correlation),
+        ])
+
+        self.readout = GeneralNonLinearReadoutBlock(
+                irreps_in=hidden_irreps,
+                irreps_out=readout_irreps,
+                hidden_irreps=readout_irreps,
+                gate=torch.nn.functional.silu,
+            )       
+        
+        self.pooling = GlobalSumHistoryPooling(reduce=params.global_reduction)
+        self.linear = o3.Linear(readout_irreps, readout_irreps, 
+            internal_weights=True, 
+            shared_weights=True,
+            biases=True
+        )
+        self.fourth_order_expansion = OneTPReadoutBlock(
+            irreps_in=readout_irreps,
+            irreps_out=o3.Irreps('2x0e+2x2e+1x4e')
+        )
+
+        self.save_hyperparameters()
+
+    def forward(
+        self,
+        batch: Batch
+    ) -> Dict:
+        
+        num_graphs = batch.num_graphs
+        edge_index = batch.edge_index
+        node_ft = batch.node_attrs
+        node_ft = self.node_ft_embedding(node_ft)
+        vectors, lengths = get_edge_vectors_and_lengths(
+            positions=batch.positions, edge_index=edge_index, shifts=batch.shifts
+        )
+        edge_length_embedding = soft_one_hot_linspace(
+            lengths.squeeze(-1), start=0, end=0.6, number=self.number_of_edge_basis, basis='fourier', cutoff=False
+        )
+        edge_radii = batch.edge_attr
+        edge_radius_embedding = soft_one_hot_linspace(
+            edge_radii.squeeze(-1), 0, 0.03, self.number_of_edge_basis, 'fourier', False
+        )
+        edge_feats = torch.cat(
+            (edge_length_embedding, edge_radius_embedding), 
+            dim=1
+        )
+        edge_sh = self.spherical_harmonics(vectors)
+        
+        outputs = []
+        node_ft = self.gnn_layers[0](node_ft, edge_index, edge_sh, edge_feats)
+
+        for i_mp in range(self.params.message_passes-1):
+            node_ft = self.gnn_layers[1](node_ft, edge_index, edge_sh, edge_feats) + self.linear_skip(node_ft)
+        
+        outputs.append(self.readout(node_ft))
+       
+        outputs = torch.stack(outputs, dim=-1)
+
+        graph_ft = self.pooling(outputs, batch.batch, num_graphs)
+        graph_ft = self.linear(graph_ft)
+        stiffness = self.fourth_order_expansion(graph_ft) 
+
+        return {'stiffness': stiffness}
+
+
+class SpectralGNN(BaseModel):
+    inds_val = [[ 0,  1,  2,  3,  4,  5],
+                [ 1,  6,  7,  8,  9, 10],
+                [ 2,  7, 11, 12, 13, 14],
+                [ 3,  8, 12, 15, 16, 17],
+                [ 4,  9, 13, 16, 18, 19],
+                [ 5, 10, 14, 17, 19, 20]]
+    inds_Q = [[0,3,4],[3,1,5],[4,5,2]]
+
+    def __init__(
+        self,
+        params: Namespace, 
+        *args: Any, 
+        **kwargs: Any
+    ) -> "SpectralGNN":
+        super().__init__(params, *args, **kwargs)
+        self.params = params
+
+        hidden_irreps = o3.Irreps(params.hidden_irreps)
+
+        self.node_ft_embedding = torch.nn.Linear(in_features=1, out_features=hidden_irreps.count(o3.Irrep(0,1)))
+        self.number_of_edge_basis = 6
+        node_ft_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
+        edge_feats_irreps = o3.Irreps(f"{self.number_of_edge_basis*2}x0e")
+        edge_attr_irreps = o3.Irreps.spherical_harmonics(params.lmax)
+        self.spherical_harmonics = o3.SphericalHarmonics(
+            edge_attr_irreps,
+            normalize=True, normalization='component'
+        )
+        num_features = hidden_irreps.count(o3.Irrep(0, 1))
+        interaction_irreps = (edge_attr_irreps * num_features).sort()[0].simplify()
+        readout_irreps = o3.Irreps(params.readout_irreps)
+
+        self.linear_skip = o3.Linear(
+                irreps_in=hidden_irreps,
+                irreps_out=hidden_irreps,
+                internal_weights=True,
+                shared_weights=True
+            )
+
+        self.gnn_layers = torch.nn.ModuleList([
+            MACELayer(node_ft_irreps, edge_attr_irreps, edge_feats_irreps, interaction_irreps, hidden_irreps, params.agg_norm_const, params.interaction_reduction, True, params.correlation),
+            MACELayer(hidden_irreps, edge_attr_irreps, edge_feats_irreps, interaction_irreps, hidden_irreps, params.agg_norm_const, params.interaction_reduction, True, params.correlation),
+        ])
+
+        self.lin_readout = GeneralLinearReadoutBlock(
+            irreps_in=hidden_irreps,
+            hidden_irreps=hidden_irreps,
+            irreps_out=readout_irreps,
+        )
+
+        self.nonlin_readout = GeneralNonLinearReadoutBlock(
+            irreps_in=hidden_irreps,
+            irreps_out=readout_irreps,
+            hidden_irreps=readout_irreps,
+            gate=torch.nn.functional.silu,
+        )       
+        
+        self.pooling = GlobalSumHistoryPooling(reduce=params.global_reduction)
+        self.linear = o3.Linear(readout_irreps, readout_irreps, 
+            internal_weights=True, 
+            shared_weights=True,
+            biases=True
+        )
+
+        # self.vec_select = VectorNormSelection(num_vecs_in=8, num_vecs_out=2)
+        self.sym_tensor = CartesianTensor('ij=ji')
+
+        s = 1/sqrt(2.0)
+        self.register_buffer('tens_multipliers', torch.tensor([[1,s,s],[s,1,s],[s,s,1]], dtype=torch.float32))
+        self.save_hyperparameters()
+        
+    def forward(
+        self,
+        batch: Batch
+    ) -> Dict:
+        
+        num_graphs = batch.num_graphs
+        edge_index = batch.edge_index
+        node_ft = batch.node_attrs
+        node_ft = self.node_ft_embedding(node_ft)
+        vectors, lengths = get_edge_vectors_and_lengths(
+            positions=batch.positions, edge_index=edge_index, shifts=batch.shifts
+        )
+        edge_length_embedding = soft_one_hot_linspace(
+            lengths.squeeze(-1), start=0, end=0.6, number=self.number_of_edge_basis, basis='fourier', cutoff=False
+        )
+        edge_radii = batch.edge_attr
+        edge_radius_embedding = soft_one_hot_linspace(
+            edge_radii.squeeze(-1), 0, 0.03, self.number_of_edge_basis, 'fourier', False
+        )
+        edge_feats = torch.cat(
+            (edge_length_embedding, edge_radius_embedding), 
+            dim=1
+        )
+        edge_sh = self.spherical_harmonics(vectors)
+        
+        outputs = []
+        node_ft = self.gnn_layers[0](node_ft, edge_index, edge_sh, edge_feats)
+
+        for i_mp in range(self.params.message_passes-1):
+            node_ft = self.gnn_layers[1](node_ft, edge_index, edge_sh, edge_feats) + self.linear_skip(node_ft)
+        
+        outputs.append(self.lin_readout(node_ft))
+        outputs.append(self.nonlin_readout(node_ft))
+       
+        outputs = torch.stack(outputs, dim=-1)
+
+        graph_ft = self.pooling(outputs, batch.batch, num_graphs)
+        graph_ft = self.linear(graph_ft)
+
+        vals = graph_ft[:, :21]
+        # vecs = graph_ft[:, 21:] 
+        # vecs = self.vec_select(vecs) # [num_graphs, 2, 3]
+        # e1 = vecs[:,0,:]
+        # e1 = e1 / (torch.linalg.norm(e1, dim=1, keepdim=True)+1e-8)
+        # e2 = vecs[:,1,:]
+        # e2 = e2 / (torch.linalg.norm(e2, dim=1, keepdim=True)+1e-8)
+        # e3 = torch.linalg.cross(e1, e2)
+        # e2 = torch.linalg.cross(e3, e1)
+
+        # R = torch.stack([e1,e2,e3], dim=1)
+        # length = torch.linalg.norm(R, dim=2, keepdim=True)
+        # # R = R / length
+        # R = R / (length + 1e-8)
+        A = self.sym_tensor.to_cartesian(graph_ft[:,21:])
+        # _, evecs = torch.linalg.eigh(A)   # columns are normalized eigenvectors
+        # R = torch.permute(evecs, (0,2,1)) # rows of R are orthonormal vectors
+        # R = A
+        Q, _ = torch.linalg.qr(A)
+        R = torch.permute(Q, (0,2,1))
+
+        M = vals[:, self.inds_val]
+        _Q,_R = torch.linalg.qr(M)
+        _evals = _R[:,[0,1,2,3,4,5],[0,1,2,3,4,5]]
+
+
+        T = _Q[:,self.inds_Q,:]*self.tens_multipliers.view(1,3,3,1)
+        C_local = torch.einsum('pa,pa,pija,pkla->pijkl', _evals, _evals, T, T)
+        C_predictions = torch.einsum('pijkl,pia,pjb,pkc,pld->pabcd', C_local, R, R, R, R)
+        # C_predictions = C_local
+        
+        if torch.sum(torch.isnan(C_predictions))>0:
+            raise ValueError('nan in C_predictions')
+
+        return {'stiffness': C_predictions}
+
+    def training_step(self, batch, batch_idx):
+        output = self(batch)
+
+        loss = torch.nn.functional.mse_loss(
+            10*output['stiffness'], 10*batch['stiffness']
+        ) 
+
+        self.log("loss", loss, 
+            prog_bar=False, batch_size=batch.num_graphs,
+            # on_step=False, on_epoch=True
+            )
+      
+        self.log("lr", self.optimizers().param_groups[0]['lr'], 
+                prog_bar=False, batch_size=batch.num_graphs, 
+                on_epoch=True, on_step=False, sync_dist=True
+                )
+        return loss    
+
+    def validation_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor]:
+        output = self(batch)
+
+        loss = torch.nn.functional.mse_loss(
+            output['stiffness'], batch['stiffness']
+        )
+      
+        self.log("val_loss", loss, 
+            prog_bar=True, batch_size=batch.num_graphs, sync_dist=True
+        )
+        return output['stiffness'], batch['stiffness']
+
+class LatticeAttention(BaseModel):
+
+    def __init__(
+        self,
+        params: Namespace, 
+        *args: Any, 
+        **kwargs: Any
+    ) -> "LatticeAttention":
+        super().__init__(params, *args, **kwargs)
+        self.params = params
+
+        hidden_irreps = o3.Irreps(params.hidden_irreps)
+
+        self.register_buffer('loss_weights', torch.ones((1,21)))
+
+        self.node_ft_embedding = torch.nn.Linear(in_features=1, out_features=hidden_irreps.count(o3.Irrep(0,1)))
+
+        node_ft_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
+        self.number_of_edge_basis = 5
+        number_of_basis = self.number_of_edge_basis*2
+        edge_feats_irreps = o3.Irreps(f"{number_of_basis}x0e")
+        irreps_sh = o3.Irreps.spherical_harmonics(params.lmax)
+        self.spherical_harmonics = o3.SphericalHarmonics(
+            irreps_sh, normalize=True, normalization='component'
+        )
+        num_features = hidden_irreps.count(o3.Irrep(0, 1))
+        interaction_irreps = (irreps_sh * num_features).sort()[0].simplify()
+        readout_irreps = o3.Irreps(params.readout_irreps)
+
+        irreps_key = o3.Irreps('32x0e+32x1o')
+        irreps_query = o3.Irreps('32x0e+32x1o')
+
+        self.gat0 = GraphAttention(
+            node_ft_irreps, irreps_query, irreps_key, hidden_irreps, irreps_sh, number_of_basis
+        )
+        
+        self.gat1 = GraphAttention(
+            hidden_irreps, irreps_query, irreps_key, hidden_irreps, irreps_sh, number_of_basis
+        )
+
+        self.pooling = GlobalSumHistoryPooling(reduce=params.global_reduction)
+        self.linear = o3.Linear(hidden_irreps, readout_irreps, 
+            internal_weights=True, 
+            shared_weights=True,
+            biases=True
+        )
+        self.fourth_order_expansion = OneTPReadoutBlock(
+            irreps_in=readout_irreps,
+            irreps_out=o3.Irreps('2x0e+2x2e+1x4e')
+        )
+
+        self.save_hyperparameters()
+
+    def forward(
+        self,
+        batch: Batch
+    ) -> Dict:
+        
+        num_graphs = batch.num_graphs
+        edge_index = batch.edge_index
+        node_ft = batch.node_attrs
+        # node_ft = self.connectivity_embedding(batch.node_attrs, edge_index)
+        node_ft = self.node_ft_embedding(node_ft)
+        vectors, lengths = get_edge_vectors_and_lengths(
+            positions=batch.positions, edge_index=edge_index, shifts=batch.shifts
+        )
+        lengths = lengths.squeeze(-1)
+        edge_length_embedding = soft_one_hot_linspace(
+            lengths, start=0, end=0.6, number=self.number_of_edge_basis, basis='fourier', cutoff=False
+        )
+        edge_radius_embedding = soft_one_hot_linspace(
+            batch.edge_attr.squeeze(-1), 0, 0.02, self.number_of_edge_basis, 'fourier', False
+        )
+        edge_feats = torch.cat(
+            (edge_length_embedding, edge_radius_embedding), 
+            dim=1
+        )
+        edge_sh = self.spherical_harmonics(vectors)
+        
+        outputs = []
+
+        node_ft = self.gat0(node_ft, edge_index, edge_sh, edge_feats)
+        for _ in range(self.params.message_passes - 1):
+            node_ft = self.gat1(node_ft, edge_index, edge_sh, edge_feats)
+
+        outputs.append(node_ft)
+
+        outputs = torch.stack(outputs, dim=-1)
+
+        graph_ft = self.pooling(outputs, batch.batch, num_graphs)
+        # TODO: add dropout
+        graph_ft = self.linear(graph_ft)
+        stiffness = self.fourth_order_expansion(graph_ft) # [num_]
+
+        return {'stiffness': stiffness}
+
+class CrystGraphConv(BaseModel):
+    def __init__(
+        self,
+        params: Namespace, 
+        *args: Any, 
+        **kwargs: Any
+    ) -> "CrystGraphConv":
+        super().__init__(params, *args, **kwargs)
+        self.params = params
+
+        self.register_buffer('loss_weights', 10*torch.ones((1,21)))
+        
+        hidden_dim = params.hidden_dim
+        self.node_ft_embedding = torch.nn.Linear(in_features=3, out_features=hidden_dim)
+        self.edge_ft_embedding = torch.nn.Linear(in_features=5, out_features=hidden_dim)
+        
+        self.cgc_layers = torch.nn.ModuleList(
+            [CGCLayer(hidden_dim, hidden_dim, params.interaction_reduction) for i in range(params.message_passes)]
+        )
+
+        self.pooling = GlobalElementwisePooling(params.global_reduction)
+
+        self.mlp = torch.nn.Sequential(
+            torch.nn.Linear(hidden_dim, 128),
+            torch.nn.Softplus(),
+            torch.nn.Linear(128, 64),
+            torch.nn.Softplus(),
+            torch.nn.Linear(64, 32),
+            torch.nn.Softplus(),
+            torch.nn.Linear(32, 21)
+        )
+
+        self.save_hyperparameters()
+
+    def forward(
+        self,
+        batch: Batch
+    ) -> Dict:
+        
+        num_graphs = batch.num_graphs
+        edge_index = batch.edge_index
+        node_ft = batch.positions # [num_nodes, 3]
+        edge_radius = batch.edge_attr # [num_edges, 1]
+
+        node_ft = self.node_ft_embedding(node_ft) # [num_nodes, hidden_dim]
+
+        vectors, lengths = get_edge_vectors_and_lengths(
+            positions=batch.positions, edge_index=edge_index, shifts=batch.shifts, normalize=True
+        )
+        edge_ft = torch.cat([vectors, lengths, edge_radius], dim=1) # [num_edges, 5]
+        edge_ft = self.edge_ft_embedding(edge_ft) # [num_edges, hidden_dim]
+
+        for i_mp in range(self.params.message_passes):
+            node_ft = node_ft + self.cgc_layers[i_mp](node_ft, edge_index, edge_ft)
+        
+        graph_ft = self.pooling(node_ft, batch.batch, num_graphs) # [num_nodes, hidden_dim]
+
+        stiffness = self.mlp(graph_ft) # [num_graphs, 21]
+
+        return {'stiffness': stiffness}
+
+
+class MCrystGraphConv(BaseModel):
+    def __init__(
+        self,
+        params: Namespace, 
+        *args: Any, 
+        **kwargs: Any
+    ) -> "MCrystGraphConv":
+        super().__init__(params, *args, **kwargs)
+        self.params = params
+
+        self.register_buffer('loss_weights', 10*torch.ones((1,21)))
+        
+        hidden_dim = params.hidden_dim
+        self.node_ft_embedding = torch.nn.Linear(in_features=3, out_features=hidden_dim)
+        self.edge_ft_embedding = torch.nn.Linear(in_features=5, out_features=hidden_dim)
+        self.line_edge_ft_embedding = torch.nn.Linear(in_features=5, out_features=hidden_dim)
+        
+        self.cgc_layers = torch.nn.ModuleList(
+            [CGCLayer(hidden_dim, hidden_dim, params.interaction_reduction) for i in range(params.message_passes)]
+        )
+        self.m_cgc_layers = torch.nn.ModuleList(
+            [CGCLayer(hidden_dim, hidden_dim, params.interaction_reduction) for i in range(params.message_passes)]
+        )
+
+        self.pooling = GlobalElementwisePooling(params.global_reduction)
+
+        self.mlp = torch.nn.Sequential(
+            torch.nn.Linear(hidden_dim, 128),
+            torch.nn.Softplus(),
+            torch.nn.Linear(128, 64),
+            torch.nn.Softplus(),
+            torch.nn.Linear(64, 32),
+            torch.nn.Softplus(),
+            torch.nn.Linear(32, 21)
+        )
+
+        self.save_hyperparameters()
+
+    def forward(
+        self,
+        batch: Batch
+    ) -> Dict:
+        
+        num_graphs = batch.num_graphs
+        edge_index = batch.edge_index
+        line_edge_index = batch.line_index
+        node_ft = batch.positions # [num_nodes, 3]
+        edge_radius = batch.edge_attr # [num_edges, 1]
+
+        node_ft = self.node_ft_embedding(node_ft) # [num_nodes, hidden_dim]
+
+        vectors, lengths = get_edge_vectors_and_lengths(
+            positions=batch.positions, edge_index=edge_index, shifts=batch.shifts, normalize=True
+        )
+        edge_ft = torch.cat([vectors, lengths, edge_radius], dim=1) # [num_edges, 5]
+        edge_ft = self.edge_ft_embedding(edge_ft) # [num_edges, hidden_dim]
+
+
+        line_sender, line_receiver = line_edge_index
+        line_edge_vec_sender = vectors[line_sender]
+        line_edge_vec_receiver = vectors[line_receiver]
+        line_edge_len_sender = lengths[line_sender]
+        line_edge_len_receiver = lengths[line_receiver]
+        line_edge_cross = torch.linalg.cross(line_edge_vec_sender, line_edge_vec_receiver, dim=1)
+        line_edge_ft = torch.cat(
+            [line_edge_cross/(line_edge_len_sender*line_edge_len_receiver), line_edge_len_sender, line_edge_len_receiver], 
+            dim=1
+        )
+
+        line_edge_ft = self.line_edge_ft_embedding(line_edge_ft)
+
+        for i_mp in range(self.params.message_passes):
+            edge_ft = edge_ft + self.m_cgc_layers[i_mp](edge_ft, line_edge_index, line_edge_ft)
+            node_ft = node_ft + self.cgc_layers[i_mp](node_ft, edge_index, edge_ft)
+        
+        graph_ft = self.pooling(node_ft, batch.batch, num_graphs) # [num_nodes, hidden_dim]
+
+        stiffness = self.mlp(graph_ft) # [num_graphs, 21]
+
+        return {'stiffness': stiffness}

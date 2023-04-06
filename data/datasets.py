@@ -227,6 +227,7 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
             graph_ft_format: str = 'Voigt',
             n_reldens: int = 1,
             choose_reldens: str = 'first',
+            multiprocessing: Optional[Union[bool, int]] = False,
             #
             transform: Optional[Callable] = None,
             pre_transform: Optional[Callable] = None,
@@ -261,7 +262,7 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
                 raise ValueError(f'Edge feature format key `{key}` not recognised')
         self.edge_ft_format = edge_ft
             
-
+        self.multiprocessing = multiprocessing
         # repo_url = 'https://github.com/igrega348/lattices/raw/main/'
                 
         self.catalogue_path = osp.realpath(catalogue_path)
@@ -296,6 +297,124 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         #     file_path = download_url(url, self.raw_dir)
         #     extract_gz(osp.join(self.raw_dir, self.raw_compressed_name), self.raw_dir)
 
+    def process_one(self, lat_data: dict):
+        name = lat_data['name']
+        nodal_positions = np.atleast_2d(lat_data['nodal_positions'])
+        fundamental_edge_adjacency = np.atleast_2d(lat_data['fundamental_edge_adjacency'])
+        fundamental_tess_vecs = np.atleast_2d(lat_data['fundamental_tesselation_vecs'])
+        lattice_constants = np.array(lat_data['lattice_constants'])
+        compliance_tensors = lat_data['compliance_tensors']
+        
+        uq_inds = np.unique(fundamental_edge_adjacency)
+        nodal_positions = nodal_positions[uq_inds]
+        edge_adjacency = np.searchsorted(uq_inds, fundamental_edge_adjacency)
+        tessellation_vecs = fundamental_tess_vecs[:, 3:] - fundamental_tess_vecs[:, :3]
+        unit_shifts = np.zeros_like(tessellation_vecs).astype(int)
+        unit_shifts[tessellation_vecs!=0] = np.sign(tessellation_vecs[tessellation_vecs!=0])
+
+        # transform coordinates
+        Q = get_transform_matrix(lattice_constants)
+        nodal_positions = nodal_positions@(Q.T)
+        tessellation_vecs = tessellation_vecs@(Q.T)
+
+        edge_adjacency = np.row_stack(
+            (edge_adjacency, edge_adjacency[:,::-1])
+            ) # reverse connections
+        unit_shifts = np.row_stack(
+            (unit_shifts, -unit_shifts)
+        )
+        tessellation_vecs = np.row_stack(
+            (tessellation_vecs, -tessellation_vecs)
+        )
+
+        # data for strut thickness calibration
+        edge_vecs = nodal_positions[edge_adjacency[:,1]] - nodal_positions[edge_adjacency[:,0]]
+        edge_vecs += tessellation_vecs
+        edge_lengths = np.linalg.norm(edge_vecs, axis=1)
+        sum_edge_lengths = edge_lengths.sum()
+        uc_vol = get_uc_volume(lattice_constants)
+
+        num_uq_nodes = len(np.unique(edge_adjacency))
+        
+        # features common for all relative densities
+        _nodal_ft = torch.ones((num_uq_nodes,1), dtype=torch.float)
+        _shifts = torch.tensor(tessellation_vecs, dtype=torch.float)
+        _unit_shifts = torch.tensor(unit_shifts, dtype=torch.long)
+        _edge_adj = torch.tensor(edge_adjacency.T, dtype=torch.long)
+        _nodal_pos = torch.tensor(nodal_positions, dtype=torch.float)
+
+        out_list = []
+        assert len(compliance_tensors)>1, f'Lattice {name} does not have enough data'
+        avail_reldens = list(compliance_tensors.keys())
+        for rel_dens in avail_reldens[self.reldens_slice]:
+            
+            edge_rad = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
+            edge_radii = edge_rad*np.ones(edge_adjacency.shape[0])
+
+            compliance = compliance_tensors[rel_dens]
+            stiffness = np.linalg.inv(compliance)
+            if self.graph_ft_format=='Voigt':
+                stiffness = torch.from_numpy(stiffness).unsqueeze(0)
+                compliance = torch.from_numpy(compliance).unsqueeze(0)
+            elif self.graph_ft_format=='cartesian_4':    
+                compliance = elasticity_func.compliance_Voigt_to_4th_order(compliance)
+                stiffness = elasticity_func.stiffness_Voigt_to_4th_order(stiffness)
+                compliance = torch.from_numpy(compliance).unsqueeze(0)
+                stiffness = torch.from_numpy(stiffness).unsqueeze(0)
+
+            
+            edge_ft_list = []
+            edge_ft_list_rev = []
+            for key in self.edge_ft_format.split(','):
+                if key=='L':
+                    edge_ft_list.append(edge_lengths)
+                    edge_ft_list_rev.append(edge_lengths)
+                elif key=='r':
+                    edge_ft_list.append(edge_radii)
+                    edge_ft_list_rev.append(edge_radii)
+                elif key=='e_vec':
+                    edge_unit_vecs = edge_vecs/edge_lengths.reshape(-1,1)
+                    edge_ft_list.append(edge_unit_vecs)
+                    edge_ft_list_rev.append(-edge_unit_vecs)
+                elif key=='euler':
+                    v = edge_vecs/edge_lengths.reshape(-1,1)
+                    _phi = np.arccos(v[:,2])
+                    _th = np.arctan2(v[:,1],v[:,0])+np.pi
+                    edge_ft_list.append(np.column_stack(_phi, _th))
+                    v = -edge_vecs/edge_lengths.reshape(-1,1)
+                    _phi = np.arccos(v[:,2])
+                    _th = np.arctan2(v[:,1],v[:,0])+np.pi
+                    edge_ft_list_rev.append(np.column_stack(_phi, _th))
+                else:
+                    raise ValueError(f'Unrecognised edge format string `{key}`')
+
+            edge_features = np.column_stack(edge_ft_list)
+
+            # convert to torch tensors
+            _edge_ft = torch.tensor(edge_features, dtype=torch.float)
+            
+            data = Data(
+                # common for all reldens
+                name=name,
+                positions=_nodal_pos,
+                node_attrs=_nodal_ft, 
+                edge_index=_edge_adj, 
+                shifts=_shifts,
+                unit_shifts=_unit_shifts,
+                # for this reldens
+                edge_attr=_edge_ft, 
+                rel_dens=rel_dens,
+                stiffness=stiffness,
+                compliance=compliance,
+                )
+
+            if self.pre_filter is not None and not self.pre_filter(data):
+                continue
+            if self.pre_transform is not None:
+                data = self.pre_transform(data)
+            out_list.append(data)
+        return out_list
+
     def process(self):
         cat = Catalogue.from_file(self.raw_paths[0], 0)
 
@@ -306,130 +425,68 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         f' Edge features: {self.edge_ft_format}.'
         f' Graph feature format {self.graph_ft_format}.'
         )
-    
-        data_list = []
 
-        for i, lat_data in enumerate(tqdm(cat)):
+        if (not self.multiprocessing) or (self.multiprocessing<2):
+            print('Running sequencial processing...')
+            data_list = []
+            for lat_data in tqdm(cat):
+                data_list.extend(self.process_one(lat_data))
+        else:
+            print('Running parallel processing...') # parallel processing is slower! why?
+            assert isinstance(self.multiprocessing, int), "multiprocessing has to be boolean or integer"
+
+            with Pool(processes=self.multiprocessing) as p:
+                out_data = p.map(self.process_one, cat)
+
+            data_list = [data for out_list in out_data for data in out_list]
             
-            # lat = Lattice(lat_data)
-            name = lat_data['name']
-            nodal_positions = np.atleast_2d(lat_data['nodal_positions'])
-            fundamental_edge_adjacency = np.atleast_2d(lat_data['fundamental_edge_adjacency'])
-            fundamental_tess_vecs = np.atleast_2d(lat_data['fundamental_tesselation_vecs'])
-            lattice_constants = np.array(lat_data['lattice_constants'])
-            compliance_tensors = lat_data['compliance_tensors']
-            
-            uq_inds = np.unique(fundamental_edge_adjacency)
-            nodal_positions = nodal_positions[uq_inds]
-            edge_adjacency = np.searchsorted(uq_inds, fundamental_edge_adjacency)
-            tessellation_vecs = fundamental_tess_vecs[:, 3:] - fundamental_tess_vecs[:, :3]
-            unit_shifts = np.zeros_like(tessellation_vecs).astype(int)
-            unit_shifts[tessellation_vecs!=0] = np.sign(tessellation_vecs[tessellation_vecs!=0])
-
-            # transform coordinates
-            Q = get_transform_matrix(lattice_constants)
-            nodal_positions = nodal_positions@(Q.T)
-            tessellation_vecs = tessellation_vecs@(Q.T)
-
-            edge_adjacency = np.row_stack(
-                (edge_adjacency, edge_adjacency[:,::-1])
-                ) # reverse connections
-            unit_shifts = np.row_stack(
-                (unit_shifts, -unit_shifts)
-            )
-            tessellation_vecs = np.row_stack(
-                (tessellation_vecs, -tessellation_vecs)
-            )
-
-            # data for strut thickness calibration
-            edge_vecs = nodal_positions[edge_adjacency[:,1]] - nodal_positions[edge_adjacency[:,0]]
-            edge_vecs += tessellation_vecs
-            edge_lengths = np.linalg.norm(edge_vecs, axis=1)
-            sum_edge_lengths = edge_lengths.sum()
-            uc_vol = get_uc_volume(lattice_constants)
-
-            num_uq_nodes = len(np.unique(edge_adjacency))
-            
-            # features common for all relative densities
-            _nodal_ft = torch.ones((num_uq_nodes,1), dtype=torch.float)
-            _shifts = torch.tensor(tessellation_vecs, dtype=torch.float)
-            _unit_shifts = torch.tensor(unit_shifts, dtype=torch.long)
-            _edge_adj = torch.tensor(edge_adjacency.T, dtype=torch.long)
-            _nodal_pos = torch.tensor(nodal_positions, dtype=torch.float)
-
-
-            assert len(compliance_tensors)>1, f'Lattice {name} does not have enough data'
-            avail_reldens = list(compliance_tensors.keys())
-            for rel_dens in avail_reldens[self.reldens_slice]:
-                
-                edge_rad = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
-                edge_radii = edge_rad*np.ones(edge_adjacency.shape[0])
-
-                compliance = compliance_tensors[rel_dens]
-                stiffness = np.linalg.inv(compliance)
-                if self.graph_ft_format=='Voigt':
-                    stiffness = torch.from_numpy(stiffness).unsqueeze(0)
-                    compliance = torch.from_numpy(compliance).unsqueeze(0)
-                elif self.graph_ft_format=='cartesian_4':    
-                    compliance = elasticity_func.compliance_Voigt_to_4th_order(compliance)
-                    stiffness = elasticity_func.stiffness_Voigt_to_4th_order(stiffness)
-                    compliance = torch.from_numpy(compliance).unsqueeze(0)
-                    stiffness = torch.from_numpy(stiffness).unsqueeze(0)
-
-                
-                edge_ft_list = []
-                edge_ft_list_rev = []
-                for key in self.edge_ft_format.split(','):
-                    if key=='L':
-                        edge_ft_list.append(edge_lengths)
-                        edge_ft_list_rev.append(edge_lengths)
-                    elif key=='r':
-                        edge_ft_list.append(edge_radii)
-                        edge_ft_list_rev.append(edge_radii)
-                    elif key=='e_vec':
-                        edge_unit_vecs = edge_vecs/edge_lengths.reshape(-1,1)
-                        edge_ft_list.append(edge_unit_vecs)
-                        edge_ft_list_rev.append(-edge_unit_vecs)
-                    elif key=='euler':
-                        v = edge_vecs/edge_lengths.reshape(-1,1)
-                        _phi = np.arccos(v[:,2])
-                        _th = np.arctan2(v[:,1],v[:,0])+np.pi
-                        edge_ft_list.append(np.column_stack(_phi, _th))
-                        v = -edge_vecs/edge_lengths.reshape(-1,1)
-                        _phi = np.arccos(v[:,2])
-                        _th = np.arctan2(v[:,1],v[:,0])+np.pi
-                        edge_ft_list_rev.append(np.column_stack(_phi, _th))
-                    else:
-                        raise ValueError(f'Unrecognised edge format string `{key}`')
-
-                edge_features = np.column_stack(edge_ft_list)
-
-                # convert to torch tensors
-                _edge_ft = torch.tensor(edge_features, dtype=torch.float)
-                
-                data = Data(
-                    # common for all reldens
-                    name=name,
-                    positions=_nodal_pos,
-                    node_attrs=_nodal_ft, 
-                    edge_index=_edge_adj, 
-                    shifts=_shifts,
-                    unit_shifts=_unit_shifts,
-                    # for this reldens
-                    edge_attr=_edge_ft, 
-                    rel_dens=rel_dens,
-                    stiffness=stiffness,
-                    compliance=compliance,
-                    )
-
-                if self.pre_filter is not None and not self.pre_filter(data):
-                    continue
-                if self.pre_transform is not None:
-                    data = self.pre_transform(data)
-
-                data_list.append(data)
-    
         if len(data_list)<1:
             raise RuntimeError('Empty data list')
         else:
             torch.save(self.collate(data_list), self.processed_paths[0])
+
+class FullyConnect:
+    def __call__(self, lat: Data):
+        extra_edges = []
+        extra_shifts = []
+        extra_radii = []
+        num_nodes = lat.num_nodes
+        edge_adj = lat.edge_index.numpy().T
+
+        row = np.arange(num_nodes, dtype=np.int64)
+        row = np.repeat(row, num_nodes)
+        col = np.arange(num_nodes, dtype=np.int64)
+        col = np.tile(col, num_nodes)
+        full_adj = np.column_stack((row,col))
+        mask_self_loops = full_adj[:,0]==full_adj[:,1]
+        full_adj = full_adj[~mask_self_loops]
+
+        nrows, ncols = full_adj.shape
+        dtype={'names':['f{}'.format(i) for i in range(ncols)],
+            'formats':ncols * [full_adj.dtype]}
+        edge_diff = np.setdiff1d(full_adj.view(dtype), edge_adj.view(dtype))
+        edge_diff = edge_diff.view(full_adj.dtype).reshape(-1,ncols)
+
+
+        if len(edge_diff)==0:
+            return lat
+        else:
+            num_new_edges = edge_diff.shape[0]
+            edge_diff = torch.tensor(edge_diff).T
+            edge_index = torch.cat([lat.edge_index, edge_diff], dim=1).long()
+            edge_attr = torch.cat([lat.edge_attr, torch.zeros(num_new_edges,1)], dim=0).float()
+            edge_shifts = torch.cat([lat.shifts, torch.zeros(num_new_edges,3)], dim=0).float()
+
+            data = Data(
+                node_attrs=lat.node_attrs,
+                positions=lat.positions,
+                edge_attr=edge_attr,
+                edge_index=edge_index,
+                unit_shifts=lat.unit_shifts,
+                shifts=edge_shifts,
+                rel_dens=lat.rel_dens,
+                stiffness=lat.stiffness,
+                compliance=lat.compliance,
+                name = lat.name,
+            )
+            return data

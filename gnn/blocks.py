@@ -17,6 +17,8 @@ from .mace import (
 )
 from .pna import SCALERS, AGGREGATORS
 
+Tensor = torch.Tensor
+
 ###################
 # Embedding blocks
 ###################
@@ -49,6 +51,18 @@ class CompleteGraph:
 
         return _edge_index, _edge_feats, _edge_attr
 
+class NodeConnectivityEmbedding(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+    
+    def forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor
+    ) -> torch.Tensor:
+        sender, receiver = edge_index
+        uq_nodes, counts = torch.unique(receiver, return_counts=True)
+        return counts.view(-1,1).float()
 
 class RepeatNodeEmbedding(torch.nn.Module):
     def __init__(self, num_repeats: int) -> None:
@@ -267,6 +281,21 @@ class OneTPReadoutBlock(torch.nn.Module):
         x = self.tp3(x0,x1)
         return x # [num_graphs, @irreps_out]
 
+# module that selects vectors with largest norm
+class VectorNormSelection(torch.nn.Module):
+    def __init__(self, num_vecs_in: int, num_vecs_out: int):
+        super().__init__()
+        self.num_vecs_out = num_vecs_out
+        self.reshape = reshape_irreps(o3.Irreps(f'{num_vecs_in}x1o'))
+        self.norm_fn = o3.Norm(f'{num_vecs_in}x1o', squared=True)
+       
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  
+        norms = self.norm_fn(x)
+        indices = torch.argsort(norms, dim=1, descending=True)[:,:self.num_vecs_out].view(-1, self.num_vecs_out, 1)
+        xrs = self.reshape(x)
+        out = torch.gather(xrs, dim=1, index=indices.expand(-1,-1,3))
+        return out
+
 
 #################
 # Product blocks
@@ -357,9 +386,9 @@ class TensorProductInteractionBlock(torch.nn.Module):
         #     [input_dim] + 3 * [64] + [self.conv_tp.weight_numel],
         #     torch.nn.SiLU(),
         # )
-        # Try this initialization - includes bias term
+        # Try this initialization - includes bias term 
         layer = torch.nn.Linear(64, self.conv_tp.weight_numel, bias=False)
-        torch.nn.init.xavier_uniform_(layer.weight, gain=1)
+        torch.nn.init.xavier_uniform_(layer.weight, gain=10)
         self.conv_tp_weights = torch.nn.Sequential(
             torch.nn.Linear(input_dim, 64),
             torch.nn.SiLU(),
@@ -513,6 +542,22 @@ class GlobalSumHistoryPooling(torch.nn.Module):
         )
         return graph_ft # [irreps,]
 
+# class GlobalLinearHistoryPooling(torch.nn.Module):
+#     def __init__(self, num_components: int) -> None:
+#         super().__init__()
+#         self.num_components = num_components
+#         self.register_parameter('weight', torch.nn.Parameter(torch.ones(1,num_components)))
+
+
+class GlobalElementwisePooling(torch.nn.Module):
+    def __init__(self, reduce='sum') -> None:
+        super().__init__()
+        self.reduce = reduce
+
+    def forward(self, node_ft: Tensor, batch: Tensor, num_graphs: int):
+        return scatter(node_ft, batch, dim=-2, dim_size=num_graphs, reduce=self.reduce)
+
+
 #####################
 # Aggregation blocks
 #####################
@@ -548,12 +593,11 @@ class PNA(torch.nn.Module):
 class PNASimple(torch.nn.Module):
     def __init__(self, irreps_in: o3.Irreps, avg_deg: Dict[str, float]) -> None:
         super().__init__()
-        aggregs = ['mean', 'min', 'max']
-        # aggregs = ['mean','min','max','std']
-        # scalers = ['identity']
+        # aggregs = ['sum','mean']
+        aggregs = ['mean','min','max','std']
         scalers = ['identity','amplification','attenuation']
 
-        self.norm_fn = o3.Norm(irreps_in, squared=True)
+        # self.norm_fn = o3.Norm(irreps_in, squared=True)
         self.irreps_in = irreps_in
         self.aggs = [AGGREGATORS[agg] for agg in aggregs]
         self.scalers = [SCALERS[scale] for scale in scalers]
@@ -562,8 +606,9 @@ class PNASimple(torch.nn.Module):
         self.post_pn = torch.nn.Linear(len(aggregs)*len(scalers),1, bias=False)
 
     def forward(self, x: torch.Tensor, index: torch.Tensor, dim_size: int) -> torch.Tensor:
-        norms = self.norm_fn(x)
-        outs = [aggr(x, index, dim_size, norms=norms, irreps=self.irreps_in) for aggr in self.aggs]
+        # norms = self.norm_fn(x)
+        # outs = [aggr(x, index, dim_size, norms=norms, irreps=self.irreps_in) for aggr in self.aggs]
+        outs = [aggr(x, index, dim_size) for aggr in self.aggs]
         out = torch.stack(outs, dim=-1)
 
         deg = degree(index, dim_size, dtype=x.dtype).view(-1, 1)
@@ -577,3 +622,117 @@ class PNASimple(torch.nn.Module):
         out = self.post_pn(out)
         out = out.squeeze(2)
         return out
+
+#############
+# GNN Layers
+#############
+
+class GraphAttention(torch.nn.Module):
+    def __init__(
+        self, 
+        input_irreps: o3.Irreps,
+        query_irreps: o3.Irreps,
+        key_irreps: o3.Irreps,
+        output_irreps: o3.Irreps,
+        edge_sh_irreps: o3.Irreps,
+        edge_scalar_basis: int
+    ) -> None:
+        super().__init__()
+
+        self.h_q = o3.Linear(input_irreps, query_irreps)
+        self.tp_k = o3.FullyConnectedTensorProduct(
+            input_irreps, edge_sh_irreps, key_irreps, shared_weights=False
+        )
+        self.fc_k = FullyConnectedNet(
+            [edge_scalar_basis, 32, self.tp_k.weight_numel], 
+            act=torch.nn.functional.silu
+        )
+        self.tp_v = o3.FullyConnectedTensorProduct(
+            input_irreps, edge_sh_irreps, output_irreps, shared_weights=False
+        )
+        self.fc_v = FullyConnectedNet(
+            [edge_scalar_basis, 32, self.tp_v.weight_numel], 
+            act=torch.nn.functional.silu
+        )
+        self.dot = o3.FullyConnectedTensorProduct(
+            query_irreps, key_irreps, "0e"
+        )
+
+    def forward(
+        self,
+        node_ft: torch.Tensor, 
+        edge_index: torch.Tensor,
+        edge_sh: torch.Tensor,
+        edge_scalars: torch.Tensor,
+    ) -> torch.Tensor:
+        sender, receiver = edge_index
+        q = self.h_q(node_ft)
+        k = self.tp_k(node_ft[sender], edge_sh, self.fc_k(edge_scalars))
+        v = self.tp_v(node_ft[sender], edge_sh, self.fc_v(edge_scalars))
+
+        exp = self.dot(q[receiver], k).exp()
+        z = scatter(exp, receiver, dim=0, dim_size=node_ft.shape[0])
+        alpha = exp / z[receiver]
+        return scatter(alpha.relu().sqrt() * v, receiver, dim=0, dim_size=node_ft.shape[0])
+
+class MACELayer(torch.nn.Module):
+    def __init__(
+        self,
+        input_irreps: o3.Irreps,
+        edge_sh_irreps: o3.Irreps,
+        edge_scalars_irreps: o3.Irreps,
+        interaction_irreps: o3.Irreps,
+        output_irreps: o3.Irreps,
+        interaction_agg_norm_const: Union[float, Dict],
+        interaction_reduction: str,
+        interaction_bias: bool,
+        product_correlation: int, 
+    ) -> None:
+        super().__init__()
+        
+        
+        self.interaction = TensorProductInteractionBlock(
+            node_feats_irreps=input_irreps,
+            edge_attrs_irreps=edge_sh_irreps,
+            edge_feats_irreps=edge_scalars_irreps,
+            irreps_out=interaction_irreps,
+            agg_norm_const=interaction_agg_norm_const,
+            reduce=interaction_reduction,
+            bias=interaction_bias
+        )
+
+        self.product = EquivariantProductBlock(
+            node_feats_irreps=self.interaction.irreps_out,
+            target_irreps=output_irreps,
+            correlation=product_correlation,
+            use_sc=False
+        )
+
+    def forward(
+        self,
+        node_ft: Tensor, 
+        edge_index: Tensor, 
+        edge_sh: Tensor, 
+        edge_scalars: Tensor
+    ) -> Tensor:
+        node_ft, sc = self.interaction(node_ft, edge_sh, edge_scalars, edge_index)
+        return self.product(node_ft, sc)
+
+class CGCLayer(torch.nn.Module):
+    def __init__(self, node_dim: int, edge_dim: int, reduction: str = 'sum') -> None:
+        super().__init__()
+        
+        self.num_hid_dim = 2*node_dim+edge_dim
+        self.fc_values = torch.nn.Linear(self.num_hid_dim, node_dim)
+        self.fc_multip = torch.nn.Linear(self.num_hid_dim, node_dim)
+
+        self.reduction = reduction
+
+    def forward(self, x: Tensor, edge_index: Tensor, edge_ft: Tensor):
+        sender, receiver = edge_index
+
+        c = torch.cat([x[sender], x[receiver], edge_ft], dim=1) # [num_edges, num_hid_dim]
+
+        msg = torch.nn.functional.softplus(self.fc_values(c))*torch.sigmoid(self.fc_multip(c))
+
+        return scatter(msg, receiver, dim=0, dim_size=x.shape[0], reduce=self.reduction)

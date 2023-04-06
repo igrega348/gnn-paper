@@ -161,9 +161,13 @@ def rotate_2nd_order_S(S : np.ndarray, R : np.ndarray):
     return K_T @ S @ np.linalg.inv(K)
 # %%
 def compliance_Voigt_to_4th_order( S : np.ndarray ):
+    if S.ndim==2:
+        _S = S.reshape((1,6,6))
+    elif S.ndim==3:
+        _S = S
     # Convert S_ij to S_abcd
-    assert np.allclose(S, S.T)
-    S_4 = np.zeros((3,3,3,3))
+    assert np.allclose(_S, _S.transpose((0,2,1))), "S is not symmetric"
+    S_4 = np.zeros((_S.shape[0],3,3,3,3))
     for i in range(6):
         if i<3:
             a = b = i
@@ -182,25 +186,32 @@ def compliance_Voigt_to_4th_order( S : np.ndarray ):
                 c = 0; d = 2
             else:
                 c = 0; d = 1
-            Sij = S[i,j]
+            Sij = _S[:,i,j]
             Sij = Sij if i<3 else Sij/2
             Sij = Sij if j<3 else Sij/2
-            S_4[a,b,c,d] = Sij
-            S_4[a,b,d,c] = Sij
-            S_4[b,a,c,d] = Sij
-            S_4[b,a,d,c] = Sij
-            S_4[c,d,a,b] = Sij
-            S_4[c,d,b,a] = Sij
-            S_4[d,c,a,b] = Sij
-            S_4[d,c,b,a] = Sij
-    return S_4
+            S_4[:,a,b,c,d] = Sij
+            S_4[:,a,b,d,c] = Sij
+            S_4[:,b,a,c,d] = Sij
+            S_4[:,b,a,d,c] = Sij
+            S_4[:,c,d,a,b] = Sij
+            S_4[:,c,d,b,a] = Sij
+            S_4[:,d,c,a,b] = Sij
+            S_4[:,d,c,b,a] = Sij
+    if S.ndim==2:
+        return S_4[0]
+    else:
+        return S_4
 # %%
 def compliance_4th_order_to_Voigt( S : np.ndarray ):
+    if S.ndim==4:
+        _S = S.reshape((1,3,3,3,3))
+    elif S.ndim==5:
+        _S = S
     # Convert S_abcd to S_ij
-    assert np.allclose(S, np.transpose(S, (0,1,3,2)))
-    assert np.allclose(S, np.transpose(S, (1,0,2,3)))
-    assert np.allclose(S, np.transpose(S, (2,3,0,1)))
-    S_2 = np.zeros((6,6))
+    assert np.allclose(_S, np.transpose(_S, (0,1,2,4,3)))
+    assert np.allclose(_S, np.transpose(_S, (0,2,1,3,4)))
+    assert np.allclose(_S, np.transpose(_S, (0,3,4,1,2)))
+    S_2 = np.zeros((_S.shape[0],6,6))
     for i in range(6):
         if i<3:
             a = b = i
@@ -219,19 +230,23 @@ def compliance_4th_order_to_Voigt( S : np.ndarray ):
                 c = 0; d = 2
             else:
                 c = 0; d = 1
-            Sij = S[a,b,c,d] if j<3 else 2*S[a,b,c,d]
+            Sij = _S[:,a,b,c,d] if j<3 else 2*_S[:,a,b,c,d]
             Sij = Sij if i<3 else 2*Sij
-            S_2[i,j] = Sij 
-            S_2[j,i] = Sij
-    return S_2
+            S_2[:,i,j] = Sij 
+            S_2[:,j,i] = Sij
+    if S.ndim==4:
+        return S_2[0]
+    else:
+        return S_2
 # %%
 def stiffness_4th_order_to_Voigt(C: np.ndarray) -> np.ndarray:
     if C.ndim==5:
-        C_2 = np.zeros((C.shape[0], 6,6))
+        _C = C
     elif C.ndim==4:
-        C_2 = np.zeros((1,6,6))
+        _C = C.reshape((1,3,3,3,3))
     else:
         raise ValueError(f'Wrong shape of C: C.shape={C.shape}')
+    C_2 = np.zeros((_C.shape[0], 6,6))
     for i in range(6):
         if i<3:
             a = b = i
@@ -250,7 +265,7 @@ def stiffness_4th_order_to_Voigt(C: np.ndarray) -> np.ndarray:
                 c = 0; d = 2
             else:
                 c = 0; d = 1
-            Cij = C[:,a,b,c,d] 
+            Cij = _C[:,a,b,c,d] 
             C_2[:,i,j] = Cij 
             C_2[:,j,i] = Cij
     if C.ndim==5:
@@ -260,8 +275,12 @@ def stiffness_4th_order_to_Voigt(C: np.ndarray) -> np.ndarray:
 # %%
 def stiffness_Voigt_to_4th_order(C: np.ndarray):
     # convert C_ij to C_abcd
-    assert np.allclose(C, C.T)
-    C4 = np.zeros((3,3,3,3))
+    if C.ndim==3:
+        _C = C
+    elif C.ndim==2:
+        _C = C.reshape((1,6,6))
+    assert np.allclose(_C, _C.transpose((0,2,1)))
+    C4 = np.zeros((_C.shape[0], 3,3,3,3))
     # 1-based continuum mechanics notation
     for i in range(1,7):
         if i<=3:
@@ -283,15 +302,18 @@ def stiffness_Voigt_to_4th_order(C: np.ndarray):
             elif j==6:
                 c = 1; d = 2
 
-            C4[a-1, b-1, c-1, d-1] = C[i-1, j-1]
-            C4[b-1, a-1, c-1, d-1] = C[i-1, j-1]
-            C4[a-1, b-1, d-1, c-1] = C[i-1, j-1]
-            C4[b-1, a-1, d-1, c-1] = C[i-1, j-1]
-            C4[c-1, d-1, a-1, b-1] = C[i-1, j-1]
-            C4[c-1, d-1, b-1, a-1] = C[i-1, j-1]
-            C4[d-1, c-1, a-1, b-1] = C[i-1, j-1]
-            C4[d-1, c-1, b-1, a-1] = C[i-1, j-1]
-    return C4
+            C4[:, a-1, b-1, c-1, d-1] = _C[:, i-1, j-1]
+            C4[:, b-1, a-1, c-1, d-1] = _C[:, i-1, j-1]
+            C4[:, a-1, b-1, d-1, c-1] = _C[:, i-1, j-1]
+            C4[:, b-1, a-1, d-1, c-1] = _C[:, i-1, j-1]
+            C4[:, c-1, d-1, a-1, b-1] = _C[:, i-1, j-1]
+            C4[:, c-1, d-1, b-1, a-1] = _C[:, i-1, j-1]
+            C4[:, d-1, c-1, a-1, b-1] = _C[:, i-1, j-1]
+            C4[:, d-1, c-1, b-1, a-1] = _C[:, i-1, j-1]
+    if C.ndim==3:
+        return C4
+    else:
+        return C4[0,:,:,:,:]
 # %% Young's modulus in a specific direction
 def Youngs_modulus(S : np.ndarray, d : np.ndarray):
     assert S.shape==(3,3,3,3)

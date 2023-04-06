@@ -135,7 +135,7 @@ def main() -> None:
         num_workers=4
     )
 
-    deg = torch.zeros(20, dtype=torch.long)
+    deg = torch.zeros(40, dtype=torch.long)
     for data in tqdm(train_loader):
         d = degree(data.edge_index[1], num_nodes=None, dtype=torch.long)
         deg += torch.bincount(d, minlength=deg.numel())

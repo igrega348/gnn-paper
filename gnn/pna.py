@@ -109,11 +109,19 @@ def aggregate_std_irreps(src: Tensor, index: Tensor, dim_size: int, norms: Tenso
     return torch.sqrt(torch.relu(aggregate_var(src, index, dim_size)) + 1e-5)
 
 
+# AGGREGATORS = {
+#     'sum': aggregate_sum_irreps,
+#     'mean': aggregate_mean_irreps,
+#     'min': aggregate_min_irreps,
+#     'max': aggregate_max_irreps,
+#     'var': aggregate_var,
+#     'std': aggregate_std_irreps,
+# }
+
 AGGREGATORS = {
-    'sum': aggregate_sum_irreps,
-    'mean': aggregate_mean_irreps,
-    'min': aggregate_min_irreps,
-    'max': aggregate_max_irreps,
-    'var': aggregate_var,
-    'std': aggregate_std_irreps,
+    'sum': aggregate_sum,
+    'mean': aggregate_mean,
+    'min': aggregate_min,
+    'max': aggregate_max,
+    'std': aggregate_std
 }

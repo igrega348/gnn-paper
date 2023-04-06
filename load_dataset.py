@@ -8,7 +8,8 @@ from data import Catalogue
 if __name__=='__main__':
     df = assemble_catalogue(
         num_base_lattices=9000,
-        imperfection_levels=[0.0,0.01,0.02,0.03,0.04,0.05,0.07,0.1],
+        # imperfection_levels=[0.0],
+        imperfection_levels=[0.0,0.02,0.05],
         num_imperf_realisations=1,
         input_dir='C:/temp/gnn-paper-data',
         choose_base='first',
@@ -17,7 +18,7 @@ if __name__=='__main__':
         multiprocessing=8
     )
     # %%
-    dset_name = 'tiny'
+    dset_name = ''
     #
     all_base_names = df['base_name'].unique()
     print(f'All base names: {len(all_base_names)}')

@@ -1,10 +1,11 @@
 import copy
 import logging
-from typing import Any
+from typing import Any, Optional
 import time
 
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.utilities import rank_zero_info
@@ -106,6 +107,38 @@ def upload_evaluations(results, name: str):
     avg_error = sum(total_error)/len(total_error)
     logging.info(f'{name}: average error={avg_error*100:.2g}%, max_error={max_error*100:.2g}%')
     wandb.log({f'{name}_avg_err':avg_error, f'{name}_max_err':max_error})
+
+
+def plot_multi_parity(C_t, C_p, fig_kwargs: Optional[dict] = {}):
+    fig = plt.figure(**fig_kwargs)
+    for i in range(6):
+        for j in range(i,6):
+            ax = fig.add_subplot(6,6,6*i+j+1)
+            # ax = axes[i,j]
+            x = C_t[:,i,j]
+            y = C_p[:,i,j]
+            error = np.mean(np.abs(x-y)/np.abs(x).max())
+            sns.histplot(x=x, y=y, ax=ax)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.annotate(f'{error*100:.1g}%', xy=(0.5,0.9), xycoords='axes fraction', ha='center')
+    return fig
+
+def local_plot_evaluations(results, name: str):
+    y = torch.cat([r[0]['stiffness'] for r in results], dim=0)
+    x = torch.cat([r[1]['stiffness'] for r in results], dim=0)
+    rows, cols = np.triu_indices(6)
+    C_t = np.zeros((y.shape[0], 6, 6))
+    C_p = np.zeros((y.shape[0], 6, 6))
+    for ii in range(21):
+        i,j = rows[ii], cols[ii]
+        C_t[:, i,j] = x[:, ii]
+        C_p[:, i,j] = y[:, ii]
+        
+    ## %%
+    fig = plot_multi_parity(C_t=C_t, C_p=C_p, fig_kwargs={'figsize':(10,10)})
+    plt.savefig(name, dpi=300, bbox_inches='tight', pad_inches=0.1, facecolor='w')
+
 
 def log_matrix2(input: torch.Tensor, target: torch.Tensor, name: str):
     S = torch.zeros((6,13))

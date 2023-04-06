@@ -301,6 +301,7 @@ def tp_out_irreps_with_instructions(
         (i_in1, i_in2, permut[i_out], mode, train)
         for i_in1, i_in2, i_out, mode, train in instructions
     ]
+    instructions = sorted(instructions, key=lambda x: x[2])
 
     return irreps_out, instructions
 

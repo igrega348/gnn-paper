@@ -28,23 +28,21 @@ cat = Catalogue.from_file('./filt_wind.lat', 0)
 #14 7000:7500
 #15 7500:8000
 #16 8000:
-num_cat = 'mon'
-# cat = cat[1500:2000]
+num_cat = 0
+cat = cat[500*num_cat:500*(num_cat+1)]
 
 MAX_TRY = 10
 IMP_KIND = 'sphere_surf'
-NUM_RELDENS = 1
+NUM_RELDENS = 10
 
-new_cat_name = f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/imperf1_cat_{num_cat}.lat'
+new_cat_name = f'./imperf_cat_{num_cat}.lat'
 new_cat_dict = dict()
 
 job_num = 1
 
-with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_06-03-2023/input_files1_cat_{num_cat}.tar.gz', 'w:gz') as archive:
+with tarfile.open(f'./input_files1_cat_{num_cat}.tar.gz', 'w:gz') as archive:
 
-    for name in tqdm(['mon_Z06.0_E917']):
-    # for lat_data in tqdm(cat):
-        lat_data = cat[name]
+    for lat_data in tqdm(cat):
         lat_data.pop('edge_adjacency')
         num_fundamental_nodes = len(np.unique(lat_data['fundamental_edge_adjacency']))
         lat = Lattice(**lat_data)
@@ -54,8 +52,7 @@ with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_
         if num_fundamental_nodes==1:
             imp_levels = [0.0]
         else:
-            imp_levels = [0.0]
-            # imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
+            imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
 
         for imperfection_level in imp_levels:
 
@@ -83,9 +80,7 @@ with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_
                     print(f'Lattice {lat.name} failed')
                     break
 
-                # relative_densities = 0.001 + 0.05*np.linspace(0,1,NUM_RELDENS)
-                relative_densities = [0.051]
-                # relative_densities = 0.001 + 0.05*np.random.rand(NUM_RELDENS) MODIFIED
+                relative_densities = 0.001 + 0.05*np.random.rand(NUM_RELDENS)
                 relative_densities.sort()
                 strut_radii = [lat_imp.calculate_edge_radius(rel_dens) for rel_dens in relative_densities]
 
@@ -100,8 +95,6 @@ with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_
                 lat_dict['nodal_hash'] = hsh
 
                 new_cat_dict[lat_imp.name] = lat_dict
-
-                # lat_mesh = lat_imp.refine_mesh(0.2, 4)
                 
                 abq_input_lines = abaqus.write_abaqus_inp_normals(
                     lat_imp, 
@@ -115,7 +108,7 @@ with tarfile.open(f'E:/Dropbox (Cambridge University)/neural-networks/GLAMM/mon_
                         'Relative densities': ', '.join([f'{rd:.4g}' for rd in relative_densities]),
                         'Strut radii': ', '.join([f'{sr:.4g}' for sr in strut_radii]),
                         'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
-                        'Description':f'Debugging monoclinic {imperfection_level}',
+                        'Description':f'Simulations with imperfection level {imperfection_level}',
                         'Imperfection level':f'{imperfection_level}',
                         'Catalogue':new_cat_name,
                         'Hash':hsh
