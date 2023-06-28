@@ -110,6 +110,9 @@ def assemble_catalogue(
                 [df, loc_df[loc_df['imperfection_level'].astype(float).isin(imperfection_levels)]], 
                 axis=0
             )
+            # if we already have more base lattice than we need, we can stop
+            if len(df['base_name'].unique())>=num_base_lattices:
+                break
     else:
         assert isinstance(multiprocessing, int), "multiprocessing has to be boolean or integer"
         targets = [(fn, imperfection_levels) for fn in cat_fns]
@@ -427,7 +430,7 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         )
 
         if (not self.multiprocessing) or (self.multiprocessing<2):
-            print('Running sequencial processing...')
+            print('Running sequential processing...')
             data_list = []
             for lat_data in tqdm(cat):
                 data_list.extend(self.process_one(lat_data))

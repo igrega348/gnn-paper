@@ -3,6 +3,8 @@ from argparse import Namespace
 import time
 import logging
 from math import sqrt
+import os
+import shutil
 
 import torch
 from torch_scatter import scatter
@@ -22,6 +24,7 @@ from .blocks import (
     CGCLayer,
     MACELayer,
     GeneralLinearReadoutBlock,
+    Cart_4_to_Mandel,
     VectorNormSelection,
     NodeConnectivityEmbedding,
     GeneralNonLinearReadoutBlock,
@@ -32,15 +35,17 @@ from .blocks import (
     GlobalSumHistoryPooling,
     GlobalElementwisePooling
 )
-from .mace import get_edge_vectors_and_lengths
+from .mace import get_edge_vectors_and_lengths, reshape_irreps
 
 class BaseModel(pl.LightningModule):
     _time_metrics: Dict
+    run_stats: Dict
 
     def __init__(self, params:Namespace, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.params = params
         self._time_metrics = {}
+        self.run_stats = {'loss':[]}
 
 
     def configure_optimizers(self):
@@ -277,7 +282,91 @@ class LatticeGNN(BaseModel):
         graph_ft = self.linear(graph_ft)
         stiffness = self.fourth_order_expansion(graph_ft) 
 
+        # if torch.sum(torch.isnan(stiffness))>0:
+        #     raise ValueError('nan in stiffness')
+
         return {'stiffness': stiffness}
+
+
+class PositiveGNN(LatticeGNN):
+    def __init__(self, params: Namespace, *args: Any, **kwargs: Any) -> "PositiveGNN":
+        super().__init__(params, *args, **kwargs)
+        self.el_tens = CartesianTensor('ijkl=ijlk=jikl=klij')
+        self.cart_to_Mandel = Cart_4_to_Mandel()
+        if params.func.lower()=='exp':
+            self.matrix_func = torch.linalg.matrix_exp
+        elif params.func.lower()=='square':
+            self.matrix_func = lambda x: torch.linalg.matrix_power(x, 2)
+        
+        self.run_stats['stiffness_loss'] = []
+        # self.run_stats['compliance_loss'] = []
+        # self.run_stats['stiffness_rel_loss'] = []
+        # self.run_stats['eig_loss'] = []
+        # self.run_stats['eig_loss_inv'] = []
+        self._prev_checkpoint_step = None
+        self._prev_checkpoint_fn = None
+
+
+    def forward(self, batch: Batch) -> Dict:
+        out = super().forward(batch)['stiffness']
+
+        stiffness = self.el_tens.to_cartesian(out)
+        C = self.cart_to_Mandel(stiffness)
+        C_exp = self.matrix_func(C)
+
+        # if torch.sum(torch.isnan(C_exp))>0:
+        #     raise ValueError('nan in C_predictions')
+
+        return {'stiffness': C_exp}
+
+    def training_step(self, batch, batch_idx):
+        output = self(batch)
+
+        if torch.sum(torch.isnan(output['stiffness']))>0:
+            rank_zero_info('nan in output. Loading old weights')
+            self.load_state_dict(torch.load(self._prev_checkpoint_fn)['state_dict'])
+            output = self(batch)
+
+        rows, cols = torch.triu_indices(6,6)
+        loss = torch.nn.functional.mse_loss(
+            output['stiffness'][:, rows, cols], batch['stiffness'][:, rows, cols]
+        )
+        self.run_stats['stiffness_loss'].append((self.global_step, loss.detach().item()))
+     
+        self.log("loss", loss, 
+            prog_bar=False, batch_size=batch.num_graphs,
+            # on_step=False, on_epoch=True
+            )
+       
+        self.log("lr", self.optimizers().param_groups[0]['lr'], 
+                prog_bar=False, batch_size=batch.num_graphs, 
+                on_epoch=True, on_step=False, sync_dist=True
+                )
+
+        self.run_stats['loss'].append((self.global_step, loss.detach().item()))
+
+        return loss   
+
+    
+    def validation_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor]:
+        output = self(batch)
+
+        loss = torch.nn.functional.mse_loss(
+            output['stiffness'], batch['stiffness']
+        )
+      
+        self.log("val_loss", loss, 
+            prog_bar=True, batch_size=batch.num_graphs, sync_dist=True
+        )
+        return output['stiffness'], batch['stiffness']
+
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        last_fn = self.trainer.checkpoint_callback.last_model_path
+        if (len(last_fn)>0) and (os.path.exists(last_fn)) and (self._prev_checkpoint_step != self.global_step) and (torch.isnan(self.state_dict()['node_ft_embedding.weight']).sum().item()==0):
+            new_fn = last_fn.replace('last.ckpt', 'previous.ckpt')
+            shutil.copyfile(last_fn, new_fn)
+            self._prev_checkpoint_step = self.global_step
+            self._prev_checkpoint_fn = new_fn
 
 
 class SpectralGNN(BaseModel):
@@ -347,6 +436,7 @@ class SpectralGNN(BaseModel):
 
         # self.vec_select = VectorNormSelection(num_vecs_in=8, num_vecs_out=2)
         self.sym_tensor = CartesianTensor('ij=ji')
+        self.stack_irreps = reshape_irreps(readout_irreps)
 
         s = 1/sqrt(2.0)
         self.register_buffer('tens_multipliers', torch.tensor([[1,s,s],[s,1,s],[s,s,1]], dtype=torch.float32))
@@ -391,41 +481,49 @@ class SpectralGNN(BaseModel):
         graph_ft = self.pooling(outputs, batch.batch, num_graphs)
         graph_ft = self.linear(graph_ft)
 
-        vals = graph_ft[:, :21]
+        graph_ft = self.stack_irreps(graph_ft)
+        graph_ft = graph_ft.sum(dim=1)
+        graph_ft = self.sym_tensor.to_cartesian(graph_ft)
+        # graph_ft[:, 21:] = graph_ft[:, 21:]
+
+        # vals = graph_ft[:, :21]
         # vecs = graph_ft[:, 21:] 
         # vecs = self.vec_select(vecs) # [num_graphs, 2, 3]
         # e1 = vecs[:,0,:]
-        # e1 = e1 / (torch.linalg.norm(e1, dim=1, keepdim=True)+1e-8)
+        # # # e1 = graph_ft[:, 21:24]
+        # # # # e1 = e1 / (torch.linalg.norm(e1, dim=1, keepdim=True))
         # e2 = vecs[:,1,:]
-        # e2 = e2 / (torch.linalg.norm(e2, dim=1, keepdim=True)+1e-8)
+        # # # e2 = graph_ft[:, 24:27]
+        # # e2 = e2 / (torch.linalg.norm(e2, dim=1, keepdim=True))
         # e3 = torch.linalg.cross(e1, e2)
         # e2 = torch.linalg.cross(e3, e1)
 
         # R = torch.stack([e1,e2,e3], dim=1)
         # length = torch.linalg.norm(R, dim=2, keepdim=True)
-        # # R = R / length
-        # R = R / (length + 1e-8)
-        A = self.sym_tensor.to_cartesian(graph_ft[:,21:])
+        # R = R / length
+        # # R = R / (length + 1e-8)
+        # A = self.sym_tensor.to_cartesian(graph_ft[:,21:])
         # _, evecs = torch.linalg.eigh(A)   # columns are normalized eigenvectors
         # R = torch.permute(evecs, (0,2,1)) # rows of R are orthonormal vectors
-        # R = A
-        Q, _ = torch.linalg.qr(A)
-        R = torch.permute(Q, (0,2,1))
+        # # R = A
+        # # Q, _ = torch.linalg.qr(A)
+        # # R = torch.permute(Q, (0,2,1))
 
-        M = vals[:, self.inds_val]
-        _Q,_R = torch.linalg.qr(M)
-        _evals = _R[:,[0,1,2,3,4,5],[0,1,2,3,4,5]]
+        # M = vals[:, self.inds_val]
+        # _Q,_R = torch.linalg.qr(M)
+        # _evals = _R[:,[0,1,2,3,4,5],[0,1,2,3,4,5]]
 
 
-        T = _Q[:,self.inds_Q,:]*self.tens_multipliers.view(1,3,3,1)
-        C_local = torch.einsum('pa,pa,pija,pkla->pijkl', _evals, _evals, T, T)
-        C_predictions = torch.einsum('pijkl,pia,pjb,pkc,pld->pabcd', C_local, R, R, R, R)
-        # C_predictions = C_local
+        # T = _Q[:,self.inds_Q,:]*self.tens_multipliers.view(1,3,3,1)
+        # C_local = torch.einsum('pa,pa,pija,pkla->pijkl', _evals, _evals, T, T)
+        # C_predictions = torch.einsum('pijkl,pia,pjb,pkc,pld->pabcd', C_local, R, R, R, R)
+        # # C_predictions = C_local
         
-        if torch.sum(torch.isnan(C_predictions))>0:
-            raise ValueError('nan in C_predictions')
+        # if torch.sum(torch.isnan(C_predictions))>0:
+        #     raise ValueError('nan in C_predictions')
 
-        return {'stiffness': C_predictions}
+        return {'stiffness': graph_ft}
+        # return {'stiffness': C_predictions}
 
     def training_step(self, batch, batch_idx):
         output = self(batch)

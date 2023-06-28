@@ -521,3 +521,36 @@ def calculate_compliance_Voigt(
             S[i_row, i_column] = fct
 
     return S
+
+def calculate_compliance_Mandel(
+        odict : Dict[str, Dict[str, float]], uc_vol : float
+) -> np.ndarray:
+    # write a similar function as calculate_compliance_Voigt, but in Mandel notation
+    ordered_loading_cases = [(1,1),(1,2),(1,3),(2,3),(2,2),(2,1)]
+    S = np.zeros((6,6))
+    for i_column in range(6):
+        refpt, dof = ordered_loading_cases[i_column]
+
+        load_dict = odict[f'Load-REF{refpt}-dof{dof}']
+        if len(load_dict.keys())<1: 
+            raise ValueError
+        force = load_dict[f'REF{refpt}, RF{dof}']
+        stress = force/uc_vol if refpt==1 else 0.5*force/uc_vol
+        if stress==0: 
+            raise ValueError
+
+        for i_row in range(6):
+            refptnum, refptdeg = ordered_loading_cases[i_row]
+    
+            displacement = load_dict[f'REF{refptnum}, U{refptdeg}']
+            strain = displacement
+
+            fct = strain / stress
+            if i_row>=3:
+                fct *= np.sqrt(2)
+            if i_column>=3:
+                fct /= np.sqrt(2)
+
+            S[i_row, i_column] = fct
+    return S
+# %%

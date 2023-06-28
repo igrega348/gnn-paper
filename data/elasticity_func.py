@@ -1,5 +1,7 @@
 # %%
 import numpy as np
+import torch
+
 # %% Enforce various symmetries on compliance tensors
 def enforce_trigonal(S0 : np.ndarray) -> np.ndarray:
     S = S0.copy()
@@ -340,3 +342,90 @@ def scaling_law_fit(youngs_moduli: dict):
     constants = 10**(fit[1,:])
 
     return exponents, constants
+# %%  TORCH FUNCTIONS ###
+#########################
+def stiffness_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
+    s2 = np.sqrt(2)
+    mask = torch.tensor([[1,1,1,s2,s2,s2],
+                         [1,1,1,s2,s2,s2],
+                         [1,1,1,s2,s2,s2],
+                         [s2,s2,s2,2,2,2],
+                         [s2,s2,s2,2,2,2],
+                         [s2,s2,s2,2,2,2]], device=_C.device, dtype=_C.dtype)
+    if _C.dim() == 4:
+        C = _C.unsqueeze(0)
+    else:
+        C = _C
+    C_2 = _C.new_zeros((C.size(0),6,6))
+    for i in range(6):
+        if i<3:
+            a = b = i
+        elif i==3:
+            a = 1; b = 2
+        elif i==4:
+            a = 0; b = 2
+        else:
+            a = 0; b = 1
+        for j in range(i,6):
+            if j<3:
+                c = d = j
+            elif j==3:
+                c = 1; d = 2
+            elif j==4:
+                c = 0; d = 2
+            else:
+                c = 0; d = 1
+            Cij = C[:,a,b,c,d] 
+            C_2[:,i,j] = Cij 
+            C_2[:,j,i] = Cij
+    C_2 = C_2 * mask.view(1,6,6)
+    if _C.dim() == 4:
+        C_2.squeeze_(0)
+    return C_2
+
+def stiffness_Mandel_to_cart_4(C: torch.Tensor) -> torch.Tensor:
+    # convert C_ij to C_abcd
+    if C.ndim==3:
+        _C = C
+    elif C.ndim==2:
+        _C = C.unsqueeze(0)
+    C4 = torch.zeros((_C.shape[0], 3,3,3,3), device=C.device, dtype=C.dtype)
+    # 1-based continuum mechanics notation
+    for i in range(1,7):
+        if i<=3:
+            a = b = i
+        elif i==4:
+            a = 2; b = 3
+        elif i==5:
+            a = 1; b = 3
+        elif i==6:
+            a = 1; b = 2
+
+        for j in range(i,7):
+            if j<=3:
+                c = d = j
+            elif j==4:
+                c = 2; d = 3
+            elif j==5:
+                c = 1; d = 3
+            elif j==6:
+                c = 1; d = 2
+
+            val = _C[:, i-1, j-1]
+            if i>3:
+                val = val/np.sqrt(2)
+            if j>3:
+                val = val/np.sqrt(2)
+
+            C4[:, a-1, b-1, c-1, d-1] = val
+            C4[:, b-1, a-1, c-1, d-1] = val
+            C4[:, a-1, b-1, d-1, c-1] = val
+            C4[:, b-1, a-1, d-1, c-1] = val
+            C4[:, c-1, d-1, a-1, b-1] = val
+            C4[:, c-1, d-1, b-1, a-1] = val
+            C4[:, d-1, c-1, a-1, b-1] = val
+            C4[:, d-1, c-1, b-1, a-1] = val
+
+    if C.ndim==2:
+        C4.squeeze_(0)
+    return C4

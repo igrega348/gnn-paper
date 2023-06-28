@@ -14,6 +14,7 @@ from e3nn import o3
 from e3nn.util.codegen import CodeGenMixin
 from e3nn.util.jit import compile_mode
 from opt_einsum import contract
+import opt_einsum_fx
 
 ###########################
 # from mace.modules.radial
@@ -131,7 +132,7 @@ class SymmetricContraction(CodeGenMixin, torch.nn.Module):
 
         del irreps_in, irreps_out
 
-        if not isinstance(correlation, tuple):
+        if not isinstance(correlation, dict):
             corr = correlation
             correlation = {}
             for irrep_out in self.irreps_out:

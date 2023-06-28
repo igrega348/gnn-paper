@@ -1707,7 +1707,8 @@ class Lattice:
     def to_dict(self, fundamental: bool = True) -> dict:
         """Obtain a dictionary with the reduced representation."""
         d = dict()
-        for attr in self.ATTRS_TO_COPY:
+        attrs_to_copy = self.ATTRS_TO_COPY + ['compliance_tensors','stiffness_tensors']
+        for attr in attrs_to_copy:
             if hasattr(self, attr):
                 d[attr] = getattr(self, attr)
         d['reduced_node_coordinates'] = self.reduced_node_coordinates
@@ -1717,8 +1718,6 @@ class Lattice:
             d['fundamental_edge_adjacency'] = self.fundamental_edge_adjacency
         if hasattr(self, 'fundamental_tesselation_vecs') and fundamental:
             d['fundamental_tesselation_vecs'] = self.fundamental_tesselation_vecs
-        if hasattr(self, 'compliance_tensors'):
-            d['compliance_tensors'] = self.compliance_tensors
         return d
 
 

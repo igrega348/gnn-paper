@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 import time
 
 import numpy as np
@@ -64,6 +64,7 @@ class PrintTableMetrics(pl.Callback):
             time_elapsed = tn - self._time_metrics['_last_time']
             if steps_done>0:
                 step_per_time = steps_done/time_elapsed
+                local_dict['steps_per_time'] = step_per_time
                 local_dict['samples_per_time'] = step_per_time * batch.num_graphs
             self._time_metrics['_last_time'] = tn
             self._time_metrics['_last_step'] = step_now
@@ -79,6 +80,100 @@ class PrintTableMetrics(pl.Callback):
             if key in metrics:
                 if isinstance(metrics[key], float):
                     val = f'{metrics[key]:.6f}'
+                else:
+                    val = metrics[key]
+                fields.append(s.format(val))
+            else:
+                fields.append(s.format(''))
+        line =  " | ".join(fields)
+        return line
+        
+
+class SimpleTableMetrics:
+
+    def __init__(self, log_metrics: list, every_n_steps: int = 1000, col_width: int = 10) -> None:
+
+        header = []
+        for metric in log_metrics:
+            header.append(metric)
+        if 'epoch' not in header:
+            header.insert(0, "epoch")
+        
+        self.every_n_steps = every_n_steps
+        self.format_str = '{' + ':<' + str(col_width) + '}'
+        self.col_width = col_width
+        n_cols = len(header)
+        total_width = col_width * n_cols + 3*n_cols
+        self.total_width = total_width
+        
+        self.header = header
+        self._time_metrics = {}
+        self.on_fit_start()
+
+    def on_fit_start(self) -> None:
+        s = self.format_str
+        fields = [s.format(metric) for metric in self.header]
+        line = " | ".join(fields) + "\n" + "-" * self.total_width
+        rank_zero_info(line)
+        self._time_metrics['_last_step'] = 0
+        self._time_metrics['_last_time'] = time.time()
+
+    def on_fit_end(self) -> None:
+        line = "\n" + "-" * self.total_width
+        rank_zero_info(line)
+
+    def on_epoch_start(self, local_dict: Dict) -> None:
+        rank_zero_info(self._format_table(local_dict))
+        
+    def on_validation(self, local_dict: Dict) -> None:
+        rank_zero_info(self._format_table(local_dict))
+
+    def on_train_batch_end(self, local_dict: Dict) -> None:
+        step_now = local_dict['step']
+        if (step_now==0) or ((step_now+1)%self.every_n_steps==0):
+            tn = time.time()
+            steps_done = step_now - self._time_metrics['_last_step']
+            time_elapsed = tn - self._time_metrics['_last_time']
+            if steps_done>0:
+                step_per_time = steps_done/time_elapsed
+                local_dict['steps_per_time'] = step_per_time
+                if 'max_steps' in local_dict:
+                    steps_to_go = local_dict['max_steps'] - step_now
+                    time_to_go = steps_to_go / step_per_time
+                    local_dict['eta'] = time_to_go
+            self._time_metrics['_last_time'] = tn
+            self._time_metrics['_last_step'] = step_now
+
+            rank_zero_info(self._format_table(local_dict))
+
+    def set_description(self, *args) -> None:
+        pass
+        
+    def set_postfix(self, local_dict: Dict) -> None:
+        if 'loss' in local_dict:
+            self.on_train_batch_end(local_dict)
+        elif 'val_loss' in local_dict:
+            self.on_validation(local_dict)
+
+    def update(self) -> None:
+        pass
+        
+    def _format_float(self, x: float):
+        max_num_digits = self.col_width - 1
+        if x>10**max_num_digits:
+            fmt_str = '{:.' + str(max_num_digits-4) + 'g}'
+        else:
+            fmt_str = '{:.' + str(max_num_digits) + 'g}'
+        return fmt_str.format(x)
+    
+    def _format_table(self, metrics: dict) -> str:
+        # Formatting
+        s = self.format_str
+        fields = []
+        for key in self.header:
+            if key in metrics:
+                if isinstance(metrics[key], float):
+                    val = self._format_float(metrics[key])
                 else:
                     val = metrics[key]
                 fields.append(s.format(val))

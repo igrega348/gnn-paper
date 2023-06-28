@@ -9,7 +9,6 @@ from data import Lattice, Catalogue
 from data import WindowingError, PeriodicPartnersError
 from utils import plotting, abaqus
 # %%
-# select the names that we want
 cat = Catalogue.from_file('./filt_wind.lat', 0)
 names = cat.names
 cat = Catalogue.from_file('./Unit_Cell_Catalog.txt', 1)
@@ -17,36 +16,28 @@ cat.names = names
 print(cat)
 # %%
 # process catalogue in chunks of 500
-# 0 0:500
-# 1 500:1000
-# 2 1000:1500
-# 3 1500:2000
-# 4 2000:2500
-# 5 2500:3000
-# 6 3000:3500
-# 7 3500:4000
-# 8 4000:4500
-# 9 4500:5000
-#10 5000:5500
-#11 5500:6000
-#12 6000:6500
-#13 6500:7000
-#14 7000:7500
-#15 7500:8000
-#16 8000:
-num_cat = 1
-cat = cat[500*num_cat:500*(1+num_cat)]
+# 0 0:1000
+# 1 1000:2000
+# 2 2000:3000
+# 3 3000:4000
+# 4 4000:5000
+# 5 5000:6000
+# 6 6000:7000
+# 7 7000:8000
+# 8 8000:
+num_cat = 8
+cat = cat[1000*num_cat:1000*(1+num_cat)]
 
 MAX_TRY = 10
 IMP_KIND = 'sphere_surf'
-NUM_RELDENS = 10
+NUM_RELDENS = 1
 
-new_cat_name = f'C:/temp/gnn-paper-newdata/imperf_cat_{num_cat}_disc.lat'
+new_cat_name = f'C:/temp/gnn-paper-onerd/imperf_cat_{num_cat}_0.01.lat'
 new_cat_dict = dict()
 
 job_num = 0
 
-with tarfile.open(f'C:/temp/gnn-paper-newdata/input_files_cat_{num_cat}_disc.tar.gz', 'w:gz') as archive:
+with tarfile.open(f'C:/temp/gnn-paper-onerd/input_files_cat_{num_cat}_0.01.tar.gz', 'w:gz') as archive:
 
     for lat_data in tqdm(cat):
         
@@ -91,7 +82,8 @@ with tarfile.open(f'C:/temp/gnn-paper-newdata/input_files_cat_{num_cat}_disc.tar
                     print(f'Lattice {lat.name} failed')
                     break
 
-                relative_densities = 0.001 + 0.05*np.random.rand(NUM_RELDENS)
+                # relative_densities = 0.001 + 0.05*np.random.rand(NUM_RELDENS)
+                relative_densities = [0.01]
                 relative_densities.sort()
                 strut_radii = [lat_imp.calculate_edge_radius(rel_dens) for rel_dens in relative_densities]
 
@@ -117,11 +109,11 @@ with tarfile.open(f'C:/temp/gnn-paper-newdata/input_files_cat_{num_cat}_disc.tar
                         'Job name':f'{job_num:06d}',
                         'Lattice name':lat_imp.name,
                         'Base lattice':base_name,
-                        'Date':'2023-03-01', 
+                        'Date':'2023-06-14', 
                         'Relative densities': ', '.join([f'{rd:.4g}' for rd in relative_densities]),
                         'Strut radii': ', '.join([f'{sr:.4g}' for sr in strut_radii]),
                         'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
-                        'Description':f'Debugging - try different discretisation',
+                        'Description':f'All lattices at 1% relative density',
                         'Imperfection level':f'{imperfection_level}',
                         'Catalogue':new_cat_name,
                         'Hash':hsh

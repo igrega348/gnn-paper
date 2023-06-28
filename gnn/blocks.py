@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Union, Dict, Callable
+from typing import Tuple, Optional, Union, Dict, Callable, List
 
 import numpy as np
 import torch
@@ -296,6 +296,57 @@ class VectorNormSelection(torch.nn.Module):
         out = torch.gather(xrs, dim=1, index=indices.expand(-1,-1,3))
         return out
 
+class Cart_4_to_Mandel(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.a = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0, 0, 1]
+        self.b = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2]
+        self.c = [0, 1, 2, 0, 0, 1, 1, 2, 0, 0, 1, 2, 0, 0, 1, 0, 0, 1, 0, 1, 1]
+        self.d = [0, 1, 2, 1, 2, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2]
+
+        s2 = np.sqrt(2)
+        self.register_buffer(
+            'mask', torch.tensor(
+            [[1,1,1,s2,s2,s2],
+            [1,1,1,s2,s2,s2],
+            [1,1,1,s2,s2,s2],
+            [s2,s2,s2,2,2,2],
+            [s2,s2,s2,2,2,2],
+            [s2,s2,s2,2,2,2]],
+            dtype=torch.get_default_dtype(),)
+        )
+        rows, cols = torch.triu_indices(6,6)
+        self.register_buffer(
+            'rows', rows
+        )
+        self.register_buffer(
+            'cols', cols
+        )
+        del rows, cols
+
+    def forward(self, C: torch.Tensor) -> torch.Tensor:
+        C2 = C.new_zeros((C.shape[0], 6, 6))
+        C2[:, self.rows, self.cols] = C[:, self.a, self.b, self.c, self.d]
+        C2[:, self.cols, self.rows] = C[:, self.a, self.b, self.c, self.d]
+        C2 = C2 * self.mask.view(1,6,6)
+        return C2
+    
+class Spherical_to_Cartesian(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        formula = 'ijkl=jikl=ijlk=klij'
+        indices = 'ijkl'
+        rtp = o3.ReducedTensorProducts(formula, **{i: "1o" for i in indices})
+        Q = rtp.change_of_basis
+        Q_flat = Q.flatten(-len(indices))
+
+        self.register_buffer('Q_flat', Q_flat)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        cartesian_tensor = x @ self.Q_flat
+        shape = list(x.shape[:-1]) + [3,3,3,3]
+        cartesian_tensor = cartesian_tensor.view(shape)
+        return cartesian_tensor
 
 #################
 # Product blocks
@@ -310,17 +361,22 @@ class EquivariantProductBlock(torch.nn.Module):
     ) -> None:
         super().__init__()
 
+        self.reshape = reshape_irreps(node_feats_irreps)
+
         self.use_sc = use_sc
+        mul = node_feats_irreps.count(o3.Irrep(0,1))
+        symmetric_contraction_out = o3.Irreps([(mul, ir) for _, ir in target_irreps])
+
         self.symmetric_contractions = SymmetricContraction(
             irreps_in=node_feats_irreps,
-            irreps_out=target_irreps,
+            irreps_out=symmetric_contraction_out,
             correlation=correlation,
             element_dependent=False,
             num_elements=None,
         )
         # Update linear
         self.linear = o3.Linear(
-            target_irreps,
+            symmetric_contraction_out,
             target_irreps,
             internal_weights=True,
             shared_weights=True,
@@ -331,6 +387,9 @@ class EquivariantProductBlock(torch.nn.Module):
         node_feats: torch.Tensor, 
         sc: torch.Tensor, 
     ) -> torch.Tensor:
+        
+        node_feats = self.reshape(node_feats)
+        
         node_feats = self.symmetric_contractions(x=node_feats, y=None)
         if self.use_sc:
             return self.linear(node_feats) + sc
@@ -350,6 +409,7 @@ class TensorProductInteractionBlock(torch.nn.Module):
         agg_norm_const: Union[float, Dict[str, float]],
         reduce: str = 'sum',
         bias: bool = False,
+        MLP_dim: int = 64,
     ) -> None:
         super().__init__()
         self._node_feats_irreps = node_feats_irreps
@@ -387,12 +447,12 @@ class TensorProductInteractionBlock(torch.nn.Module):
         #     torch.nn.SiLU(),
         # )
         # Try this initialization - includes bias term 
-        layer = torch.nn.Linear(64, self.conv_tp.weight_numel, bias=False)
+        layer = torch.nn.Linear(MLP_dim, self.conv_tp.weight_numel, bias=False)
         torch.nn.init.xavier_uniform_(layer.weight, gain=10)
         self.conv_tp_weights = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, 64),
+            torch.nn.Linear(input_dim, MLP_dim),
             torch.nn.SiLU(),
-            torch.nn.Linear(64, 64),
+            torch.nn.Linear(MLP_dim, MLP_dim),
             torch.nn.SiLU(),
             layer
         )
@@ -415,7 +475,6 @@ class TensorProductInteractionBlock(torch.nn.Module):
         #     self._irreps_out, '1x0e', self._irreps_out
         # )
 
-        self.reshape = reshape_irreps(self._irreps_out)
 
     @property
     def irreps_in(self):
@@ -449,7 +508,7 @@ class TensorProductInteractionBlock(torch.nn.Module):
         message = self.linear(message)
         # message = self.skip_tp(message, node_attrs) # CHANGED
         return (
-            self.reshape(message),
+            message,
             None, # no skip connection
         )  # [n_nodes, channels, (lmax + 1)**2]
 
@@ -516,7 +575,44 @@ class TensorProductResidualInteractionBlock(TensorProductInteractionBlock):
             self.reshape(message),
             sc, 
         )  # [n_nodes, channels, (lmax + 1)**2]
+    
 
+class EdgeUpdateBlock(torch.nn.Module):
+    def __init__(
+            self,
+            node_ft_irreps: o3.Irreps,
+            edge_sh_irreps: o3.Irreps,
+            edge_ft_irreps: o3.Irreps,
+    ) -> None:
+        super().__init__()
+
+        self.node_ft_irreps = node_ft_irreps
+        self.edge_sh_irreps = edge_sh_irreps
+        self.edge_ft_irreps = edge_ft_irreps
+
+        self.tp_block = o3.FullyConnectedTensorProduct(
+            self.node_ft_irreps,
+            self.node_ft_irreps,
+            self.edge_ft_irreps+self.edge_sh_irreps,
+        )
+        self.register_parameter('eps_ft', torch.nn.Parameter(torch.tensor(0.1)))
+        self.register_parameter('eps_sh', torch.nn.Parameter(torch.tensor(0.1)))
+
+    def forward(
+            self, 
+            node_ft: torch.Tensor, 
+            edge_index: torch.Tensor, 
+            edge_ft: torch.Tensor, 
+            edge_sh: torch.Tensor
+    ) -> torch.Tensor:
+        sender, receiver = edge_index
+        out = self.tp_block(node_ft[sender], node_ft[receiver])
+        scalars = out[..., :self.edge_ft_irreps.dim]
+        sh = out[..., self.edge_ft_irreps.dim:]
+        edge_ft = edge_ft + self.eps_ft * scalars
+        edge_sh = edge_sh + self.eps_sh * sh
+        return edge_ft, edge_sh
+    
 #################
 # Pooling blocks
 #################
@@ -541,6 +637,46 @@ class GlobalSumHistoryPooling(torch.nn.Module):
             reduce=self.reduce
         )
         return graph_ft # [irreps,]
+    
+class GlobalAttentionPooling(torch.nn.Module):
+    def __init__(self, irreps_in: o3.Irreps) -> None:
+        super().__init__()
+        self.tens_prod = o3.TensorSquare(
+            irreps_in=irreps_in,
+            filter_ir_out=[o3.Irrep(0,1)],
+        )
+        self.linear = o3.Linear(
+            irreps_in=self.tens_prod.irreps_out.simplify(),
+            irreps_out=o3.Irreps('1x0e')
+        )
+
+    def forward(self, 
+        node_ft: Tensor, 
+        batch_index: Tensor, 
+        num_graphs: int
+    ) -> Tensor:
+        x = self.tens_prod(node_ft)
+        x = torch.nn.functional.selu(x)
+        x = self.linear(x) # [num_nodes, 1]
+        # softmax
+        exp = torch.exp(x) # [num_nodes, 1]
+        z = scatter(
+            src=exp,
+            index=batch_index.view(-1,1),
+            dim=0,
+            dim_size=num_graphs,
+            reduce='sum'
+        ) # [num_graphs, 1]
+        x = exp / z[batch_index] # [num_nodes, 1]
+        x = scatter(
+            src=node_ft*x.view(-1,1),
+            index=batch_index.view(-1,1),
+            dim=0,
+            dim_size=num_graphs,
+            reduce='sum'
+        )
+        return x
+
 
 # class GlobalLinearHistoryPooling(torch.nn.Module):
 #     def __init__(self, num_components: int) -> None:
