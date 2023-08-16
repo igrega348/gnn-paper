@@ -1,4 +1,5 @@
 # %%
+import sys
 import os
 from io import BytesIO
 import tarfile
@@ -82,9 +83,10 @@ with tarfile.open(f'C:/temp/gnn-paper-onerd/input_files_cat_{num_cat}_0.01.tar.g
                     print(f'Lattice {lat.name} failed')
                     break
 
-                # relative_densities = 0.001 + 0.05*np.random.rand(NUM_RELDENS)
-                relative_densities = [0.01]
-                relative_densities.sort()
+                r0 = np.sqrt(0.001)
+                r1 = np.sqrt(0.05)
+                r = np.linspace(r0,r1,NUM_RELDENS)
+                relative_densities = r**2
                 strut_radii = [lat_imp.calculate_edge_radius(rel_dens) for rel_dens in relative_densities]
 
                 hsh = hash(lat_imp.reduced_node_coordinates.tobytes())

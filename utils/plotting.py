@@ -157,6 +157,7 @@ def plotly_unit_cell_3d(
     lat, repr='cropped', coords='reduced', show_node_numbers=False, 
     fig=None, subplot: Optional[dict] = None,
     highlight_nodes: Optional[Iterable] = None,
+    highlight_edges: Optional[Iterable] = None,
     show_uc_box: bool = False
     ):
     nodes, edge_coords, highlight_nodes, node_numbers = get_nodes_edge_coords(
@@ -174,6 +175,15 @@ def plotly_unit_cell_3d(
             colors[i_node_highlight] = 'rgb(255,0,0)'
     else:
         colors = [colororder[i%10] for i in range(len(x))]
+    if isinstance(highlight_edges, Iterable):
+        assert np.min(highlight_edges)>=0 and np.max(highlight_edges)<len(edge_coords), \
+            "Highlighted edges outside of limits"
+        edge_colors = ['rgba(40,40,40,0.3)' for _ in range(len(edge_coords))]
+        for i_edge_highlight in highlight_edges:
+            edge_colors[i_edge_highlight] = 'rgb(255,0,0)'
+    else:
+        edge_colors = [colororder[i%10] for i in range(len(edge_coords))]
+
     if not isinstance(fig, go.Figure):
         fig = go.Figure()
     mode = 'text+markers' if show_node_numbers else 'markers'
@@ -234,7 +244,7 @@ def plotly_unit_cell_3d(
         x.extend([x_0, x_1, None])
         y.extend([y_0, y_1, None])
         z.extend([z_0, z_1, None])
-        col = colororder[i_e%10]
+        col = edge_colors[i_e]
         colors.extend([col, col, col])
 
     fig.add_scatter3d(
@@ -285,7 +295,7 @@ def visualize_graph(
             e = list(e_sorted)
             edges_tuples.append((e[0],e[1],{'r':i}))
     G = nx.Graph()
-    G.add_nodes_from(np.arange(nodes.shape[0], dtype=int))
+    G.add_nodes_from(nodes)
     G.add_edges_from(edges_tuples)
     #
     if isinstance(ax, plt.Axes):
@@ -402,6 +412,67 @@ def plotly_stiffness_surf(
     E[indices] = e
 
     R = E
+
+    X = R*np.sin(v)*np.cos(u)
+    Y = R*np.sin(v)*np.sin(u)
+    Z = R*np.cos(v)
+
+    if not isinstance(fig, go.Figure):
+        fig = go.Figure()
+    if isinstance(subplot, dict):
+        subplot_args = dict(
+                row=floor(subplot['index']/subplot['ncols']) + 1,
+                col=subplot['index']%subplot['ncols'] + 1
+        )
+    else:
+        subplot_args = {}
+
+    fig.add_trace(
+        go.Surface(x=X, y=Y, z=Z, surfacecolor=R),
+        **subplot_args
+    )
+
+    if isinstance(subplot, dict):
+        fig.layout.annotations[subplot['index']].update(text=title)
+    else:
+        fig.update_layout(title=title)
+    return fig
+
+def plotly_scaling_surf(
+    C: np.ndarray, 
+    rel_dens: np.ndarray,
+    title: str='',
+    fig=None, subplot: Optional[dict] = None,
+    ):
+    assert C.ndim==5
+    assert C.shape[1:]==(3,3,3,3)
+    assert len(rel_dens)==C.shape[0]
+        
+    u, v = np.mgrid[0:2*np.pi:100j, 0:np.pi:100j]
+
+
+    X = np.sin(v)*np.cos(u)
+    Y = np.sin(v)*np.sin(u)
+    Z = np.cos(v)
+
+    x = X.flatten()
+    y = Y.flatten()
+    z = Z.flatten()
+    pos = np.column_stack((x,y,z))
+
+    e = 1/np.einsum('pi,pj,pk,pl,...ijkl->...p',pos,pos,pos,pos,C) # [rel_dens, direction]
+    # linear fit
+    x_fit = np.log(rel_dens)
+    y_fit = np.log(e)
+    fit = np.polyfit(x_fit, y_fit, 1)
+    n = fit[0] # [direction]
+
+    rows, cols = X.shape
+    indices = np.unravel_index(np.arange(len(n)), (rows, cols))
+    N = np.zeros_like(X)
+    N[indices] = n
+
+    R = N
 
     X = R*np.sin(v)*np.cos(u)
     Y = R*np.sin(v)*np.sin(u)

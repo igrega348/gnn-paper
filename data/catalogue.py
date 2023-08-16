@@ -1,6 +1,7 @@
 from typing import Dict, Iterable, List, Union
 import numpy as np
 from tqdm import trange
+import re
 
 class Catalogue:
     """Unit cell catalogue object.
@@ -72,14 +73,35 @@ class Catalogue:
         else:
             raise NotImplementedError
 
-
     @classmethod
-    def from_file(cls, fn: str, indexing: int, progress: bool = False) -> "Catalogue":
+    def get_names(cls, fn: str) -> List[str]:
+        """Retrieve names from catalogue without reading it into memory.
+
+        Args:
+            fn (str): path to input file
+            
+        Returns:
+            List[str]: list of names
+        """
+        names = []
+        with open(fn, 'r') as fin:
+            for line in fin:
+                if line.startswith('Name:'):
+                    phrases = line.split()
+                    names.append(phrases[1])
+        return names
+         
+    @classmethod
+    def from_file(
+        cls, fn: str, indexing: int, progress: bool = False, regex: str = None
+    ) -> "Catalogue":
         """Read catalogue from a file.
 
         Args:
             fn (str): path to input file
             indexing (int): 0 or 1 as the basis of edge indexing
+            progress (bool, optional): whether to show progress bar. Defaults to False.
+            regex (str, optional): regular expression to filter names. Defaults to None.
 
         Returns:
             Catalogue
@@ -105,6 +127,10 @@ class Catalogue:
             if line.startswith('Name:'):
                 phrases = line.split()
                 name = phrases[1]
+                if isinstance(regex, str):
+                    if not re.match(regex, name):
+                        name = None
+                        continue
                 start_line = i_line
                 end_line = None
             elif 'lattice_transition' in line:

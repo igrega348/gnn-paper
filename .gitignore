@@ -28,6 +28,8 @@ slides/
 explore/
 hyperparam_serach/
 GLAMMDset*
+dset_pseudo*
+zero_imp_dset*
 
 post_process_FE_legacy.py
 post_process_FE_debug.py

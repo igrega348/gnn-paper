@@ -863,15 +863,15 @@ class Lattice:
         edge_lengths = np.linalg.norm(v, axis=1)
         return edge_lengths
 
-    def calculate_node_distances(self, repr='reduced'):
+    def calculate_node_distances(self, repr='reduced') -> Tuple[np.ndarray, np.ndarray]:
         """
-        Find the minimum distance between all pairs of nodes.
+        Calculate distances between all pairs of nodes.
 
         Parameters:
             repr: 'reduced' or 'transformed'
         Returns:
-            distances [num_nodes]: array of distances
-            indices [num_nodes, 2]: indices of nodes corresponding to distances
+            distances [num_pairs]: array of distances
+            indices [num_pairs, 2]: indices of nodes corresponding to distances
         """
         if repr=='reduced':
             positions = self.reduced_node_coordinates

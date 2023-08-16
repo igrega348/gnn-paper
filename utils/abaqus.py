@@ -1,7 +1,10 @@
 # %%
 from math import ceil
 import numpy as np
+import os
 from typing import Optional, List, Tuple, Dict, Union, Iterable
+import subprocess
+import json
 # %%
 def get_common_normal_guess(nodes : np.ndarray, edges : np.ndarray):
     assert nodes.shape[1]==3
@@ -253,11 +256,12 @@ def write_abaqus_inp(
         return lines
 # %%
 def write_abaqus_inp_normals(
-    lat: "Lattice", loading : List[Tuple], 
+    lat: "Lattice",
     strut_radii: Iterable,
     metadata : Dict[str, str], 
     fname : Optional[str] = None,
     element_type: Optional[str] = 'B33',
+    loading: List[Tuple] = [(1,1,1.0),(1,2,1.0),(1,3,1.0),(2,1,0.5),(2,2,0.5),(2,3,0.5)]
     ):
     """Write abaqus input script for a specific lattice and loading 
 
@@ -554,3 +558,68 @@ def calculate_compliance_Mandel(
             S[i_row, i_column] = fct
     return S
 # %%
+def check_data(data: dict) -> bool:
+    for refpt in [1,2]:
+        for dof in [1,2,3]:
+            if not f'Load-REF{refpt}-dof{dof}' in data:
+                return False
+            if len(data[f'Load-REF{refpt}-dof{dof}'])<12:
+                return False
+    return True
+
+def get_results_from_json(fname: str) -> Dict:
+    with open(fname, 'r') as f:
+        sim_dict = json.load(f)
+    name = sim_dict['Lattice name']
+    jobname = sim_dict['Job name']
+
+    compliance_tensors = {}
+    for instance_name, data in sim_dict['Instances'].items():
+
+        uc_volume = float(sim_dict['Unit cell volume'])
+        rel_dens = float(data['Relative density'])
+        
+        if not check_data(data):
+            print(f'Failed to process {instance_name}')
+            raise ValueError(f'Failed to process {instance_name}')
+
+        S_voigt = calculate_compliance_Voigt(data, uc_volume)
+        # S_mand = calculate_compliance_Mandel(data, uc_volume)
+        # symmetrise
+        S_voigt = 0.5*(S_voigt+S_voigt.T)
+        # S_mand = 0.5*(S_mand+S_mand.T)
+
+        compliance_tensors[rel_dens] = S_voigt
+
+    return {'job':jobname, 'name':name, 'compliance_tensors':compliance_tensors}
+
+def run_abq_sim(jobnames: Iterable, wdir: str = './abq_working_dir') -> List[Dict]:
+    ABQ_ANALYSE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'abq_analyse_parallel.py')
+
+    wdir = os.path.abspath(wdir)
+
+    with open(os.path.join(wdir, 'runscript.ps1'), 'w') as f:
+        script_lines = []
+        for jobname in jobnames:
+            assert os.path.isfile(os.path.join(wdir, f'{jobname}.inp'))
+            script_lines.append(f'abaqus job={jobname} input={jobname}.inp\n')
+        f.writelines(script_lines)
+
+    print('Working directory: ', wdir)
+    print('Running jobs... ', jobnames)
+    completed = subprocess.run('powershell "runscript.ps1"', shell=True, capture_output=True, cwd=wdir)
+    print('Powershell task finished. Starting CAE post-processing...')
+
+    completed = subprocess.run(f'abaqus cae noGUI="{ABQ_ANALYSE}" -- abq_wdir "{wdir}"', shell=True, capture_output=True)
+    if completed.returncode!=0:
+        print(completed.stdout.decode('utf-8'))
+        print(completed.stderr.decode('utf-8'))
+    print('CAE post-processing task finished')
+
+    # post-process jsons
+    outputs = []
+    for jobname in jobnames:
+        fname = os.path.join(wdir, f'{jobname}.json')
+        outputs.append(get_results_from_json(fname))
+
+    return outputs

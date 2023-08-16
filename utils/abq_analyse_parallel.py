@@ -4,6 +4,7 @@ from abaqus import *
 from abaqusConstants import *
 import __main__
 import os
+import sys
 import visualization
 import json
 from collections import OrderedDict
@@ -27,22 +28,15 @@ def parse_input_script(fn):
         odict[key] = val
     return odict
 
-def data_extractor():
-    with open('abq_extract_log.log', 'w') as log_file, open('results_table.csv', 'w') as results_file:
-        wdir = './abq_working_dir'
-
-        if not os.path.isdir('./processed_data'):
-            os.mkdir('./processed_data')
+def data_extractor(wdir):
+    with open('abq_extract_log.log', 'a') as log_file:
         
-        to_process = []
+        to_process = os.listdir(wdir)
         processed = []
-        simulations_finished = False
         count = 0
         
-        while (not simulations_finished) or (len(to_process)>0):
-            if os.path.exists('./simulations_completed.log'):
-                simulations_finished = True
-
+        while len(to_process)>0:
+  
             wdir_files = os.listdir(wdir)
         
             odb_names = [ (os.path.splitext(f)[0]) for f in wdir_files if f.endswith('.odb') ]
@@ -55,7 +49,7 @@ def data_extractor():
                 processed.append(jobname)
 
                 ODBNAME = os.path.join(wdir, '{}.odb'.format(jobname))
-                FILEOUTPUT1 = os.path.join('./processed_data', '{}.json'.format(jobname))
+                FILEOUTPUT1 = os.path.join(wdir, '{}.json'.format(jobname))
                 
                 # Read the header from input script
                 fn = os.path.join(wdir, '{}.inp'.format(jobname))
@@ -115,10 +109,20 @@ def data_extractor():
                 count += 1
                 print >> log_file, 'i = {}'.format(str(count))
                 odb.close()
-                
-        with open('odb_extraction_completed.log', 'w') as fout:
-            fout.write('')
+
+                # remove any files which have the job name but are not json
+                for f in wdir_files:
+                    if jobname in f and not f.endswith('.json'):
+                            os.remove(os.path.join(wdir, f))
             
 ###########################################################################
-data_extractor()
+args = sys.argv
+i = args.index('abq_wdir')
+wdir = args[i+1]
+assert os.path.isdir(wdir)
+
+with open('abq_extract_log.log', 'w') as log:
+    print >> log, "Detected folder ", wdir
+
+data_extractor(wdir)
 

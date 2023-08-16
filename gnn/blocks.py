@@ -219,7 +219,7 @@ class GeneralNonLinearReadoutBlock(torch.nn.Module):
         self.irreps_nonlin = self.equivariant_nonlin.irreps_in.simplify()
         self.linear_1 = o3.Linear(irreps_in=irreps_in, irreps_out=self.irreps_nonlin)
         self.linear_2 = o3.Linear(
-            irreps_in=self.hidden_irreps, irreps_out=self.irreps_out
+            irreps_in=self.equivariant_nonlin.irreps_out, irreps_out=self.irreps_out
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
@@ -247,8 +247,8 @@ class half_irreps(torch.nn.Module):
             ix += mul*ir.dim
 
         self.irreps_out = o3.Irreps(out_irreps)
-        self.columns_0 = torch.tensor(columns0, dtype=torch.long)
-        self.columns_1 = torch.tensor(columns1, dtype=torch.long)
+        self.register_buffer('columns_0', torch.tensor(columns0, dtype=torch.long))
+        self.register_buffer('columns_1', torch.tensor(columns1, dtype=torch.long))
 
     def forward(
         self, 
@@ -296,13 +296,50 @@ class VectorNormSelection(torch.nn.Module):
         out = torch.gather(xrs, dim=1, index=indices.expand(-1,-1,3))
         return out
 
+""" Indices a,b,c,d below generated as follows:
+C = [['' for _ in range(6)] for _ in range(6)]
+for i in range(6):
+    if i<3:
+        a = b = i
+    elif i==3:
+        a = 1; b = 2
+    elif i==4:
+        a = 0; b = 2
+    else:
+        a = 0; b = 1
+    for j in range(i,6):
+        if j<3:
+            c = d = j
+        elif j==3:
+            c = 1; d = 2
+        elif j==4:
+            c = 0; d = 2
+        else:
+            c = 0; d = 1
+        
+        val = [a,b,c,d]
+        # print(val)
+        C[i][j] = val
+        C[j][i] = val
+
+rows, cols = torch.triu_indices(6,6)
+a = [C[row][col][0] for row, col in zip(rows, cols)]
+b = [C[row][col][1] for row, col in zip(rows, cols)]
+c = [C[row][col][2] for row, col in zip(rows, cols)]
+d = [C[row][col][3] for row, col in zip(rows, cols)]
+print('a =', a)
+print('b =', b)
+print('c =', c)
+print('d =', d)
+"""
+
 class Cart_4_to_Mandel(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.a = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0, 0, 1]
-        self.b = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2]
-        self.c = [0, 1, 2, 0, 0, 1, 1, 2, 0, 0, 1, 2, 0, 0, 1, 0, 0, 1, 0, 1, 1]
-        self.d = [0, 1, 2, 1, 2, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2]
+        self.a = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 0, 0, 0]
+        self.b = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1]
+        self.c = [0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0, 2, 1, 0, 0, 1, 0, 0, 0, 0, 0]
+        self.d = [0, 1, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 1, 2, 1, 1]
 
         s2 = np.sqrt(2)
         self.register_buffer(

@@ -122,7 +122,9 @@ def assemble_catalogue(
         del dfs
 
     uq_base_names = df['base_name'].unique()
-    if choose_base=='first':
+    if isinstance(choose_base, Iterable):
+        chosen_base_names = np.array(choose_base)
+    elif choose_base=='first':
         chosen_base_names = uq_base_names[:num_base_lattices]
     elif choose_base=='last':
         chosen_base_names = uq_base_names[-num_base_lattices:]
@@ -231,6 +233,7 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
             n_reldens: int = 1,
             choose_reldens: str = 'first',
             multiprocessing: Optional[Union[bool, int]] = False,
+            regex_filter: Optional[str] = None,
             #
             transform: Optional[Callable] = None,
             pre_transform: Optional[Callable] = None,
@@ -247,6 +250,8 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
             self.reldens_slice = slice(-n_reldens, None, 1)
         elif choose_reldens=='half':
             self.reldens_slice = slice(None, 2*n_reldens, 2)
+        elif choose_reldens=='all':
+            self.reldens_slice = slice(None, None, 1)
         else:
             raise ValueError(f'choose_reldens `{choose_reldens}` not recognised')
 
@@ -271,6 +276,7 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         self.catalogue_path = osp.realpath(catalogue_path)
         self.catalogue_name = osp.basename(catalogue_path)
         self.processed_name = osp.basename(dset_fname)
+        self.regex_filter = regex_filter
 
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -300,9 +306,22 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         #     file_path = download_url(url, self.raw_dir)
         #     extract_gz(osp.join(self.raw_dir, self.raw_compressed_name), self.raw_dir)
 
-    def process_one(self, lat_data: dict):
+    @staticmethod
+    def process_one(
+            lat_data: dict,
+            edge_ft_format: str = 'r',
+            graph_ft_format: str = 'cartesian_4',
+            reldens_slice: slice = slice(None, None, 1),
+            pre_filter: Callable = None,
+            pre_transform: Callable = None,
+        ):
         name = lat_data['name']
-        nodal_positions = np.atleast_2d(lat_data['nodal_positions'])
+        if 'nodal_positions' in lat_data:
+            nodal_positions = np.atleast_2d(lat_data['nodal_positions'])
+        elif 'reduced_node_coordinates' in lat_data:
+            nodal_positions = np.atleast_2d(lat_data['reduced_node_coordinates'])
+        else:
+            raise ValueError('No nodal positions found')
         fundamental_edge_adjacency = np.atleast_2d(lat_data['fundamental_edge_adjacency'])
         fundamental_tess_vecs = np.atleast_2d(lat_data['fundamental_tesselation_vecs'])
         lattice_constants = np.array(lat_data['lattice_constants'])
@@ -349,26 +368,31 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         out_list = []
         assert len(compliance_tensors)>1, f'Lattice {name} does not have enough data'
         avail_reldens = list(compliance_tensors.keys())
-        for rel_dens in avail_reldens[self.reldens_slice]:
+        for rel_dens in avail_reldens[reldens_slice]:
             
             edge_rad = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
             edge_radii = edge_rad*np.ones(edge_adjacency.shape[0])
 
+            # ground truth compliance need not be given
             compliance = compliance_tensors[rel_dens]
-            stiffness = np.linalg.inv(compliance)
-            if self.graph_ft_format=='Voigt':
-                stiffness = torch.from_numpy(stiffness).unsqueeze(0)
-                compliance = torch.from_numpy(compliance).unsqueeze(0)
-            elif self.graph_ft_format=='cartesian_4':    
-                compliance = elasticity_func.compliance_Voigt_to_4th_order(compliance)
-                stiffness = elasticity_func.stiffness_Voigt_to_4th_order(stiffness)
-                compliance = torch.from_numpy(compliance).unsqueeze(0)
-                stiffness = torch.from_numpy(stiffness).unsqueeze(0)
+            if compliance is not None:
+                stiffness = np.linalg.inv(compliance)
+                if graph_ft_format=='Voigt':
+                    stiffness = torch.from_numpy(stiffness).unsqueeze(0)
+                    compliance = torch.from_numpy(compliance).unsqueeze(0)
+                elif graph_ft_format=='cartesian_4':    
+                    compliance = elasticity_func.compliance_Voigt_to_4th_order(compliance)
+                    stiffness = elasticity_func.stiffness_Voigt_to_4th_order(stiffness)
+                    compliance = torch.from_numpy(compliance).unsqueeze(0)
+                    stiffness = torch.from_numpy(stiffness).unsqueeze(0)
+            else:
+                stiffness = None
+                compliance = None
 
             
             edge_ft_list = []
             edge_ft_list_rev = []
-            for key in self.edge_ft_format.split(','):
+            for key in edge_ft_format.split(','):
                 if key=='L':
                     edge_ft_list.append(edge_lengths)
                     edge_ft_list_rev.append(edge_lengths)
@@ -411,15 +435,15 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
                 compliance=compliance,
                 )
 
-            if self.pre_filter is not None and not self.pre_filter(data):
+            if pre_filter is not None and not pre_filter(data):
                 continue
-            if self.pre_transform is not None:
-                data = self.pre_transform(data)
+            if pre_transform is not None:
+                data = pre_transform(data)
             out_list.append(data)
         return out_list
 
     def process(self):
-        cat = Catalogue.from_file(self.raw_paths[0], 0)
+        cat = Catalogue.from_file(self.raw_paths[0], 0, regex=self.regex_filter)
 
         print(f'Processing catalogue {self.catalogue_name}.'
         f' Number of lattices {len(cat)} x {self.nreldens} = {len(cat)*self.nreldens},'
@@ -433,8 +457,9 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
             print('Running sequential processing...')
             data_list = []
             for lat_data in tqdm(cat):
-                data_list.extend(self.process_one(lat_data))
+                data_list.extend(self.process_one(lat_data, self.edge_ft_format, self.graph_ft_format, self.reldens_slice, self.pre_filter, self.pre_transform))
         else:
+            raise NotImplementedError('Parallel processing not implemented for now')
             print('Running parallel processing...') # parallel processing is slower! why?
             assert isinstance(self.multiprocessing, int), "multiprocessing has to be boolean or integer"
 
