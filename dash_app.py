@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import numpy as np
 from data import elasticity_func
 from data import Lattice, Catalogue
-from exp_180.dash_mace import get_model
+# from exp_180.dash_mace import get_model
 from data.datasets import GLAMM_rhotens_Dataset as GLAMM_Dataset
 import torch
 from torch_geometric.data import Batch
@@ -19,8 +19,8 @@ class Model:
         pass
     def model(self, batch: Batch):
         return {'stiffness': torch.eye(6).unsqueeze(0)}
-# model = Model()
-model = get_model()
+model = Model()
+# model = get_model()
 print(f'{datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")} : Model loaded')
 print(f'{datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")} : Loading catalogue...')
 cat = Catalogue.from_file('./Unit_Cell_Catalog.txt', 1)
