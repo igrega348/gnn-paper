@@ -1,17 +1,19 @@
 import dash_bootstrap_components as dbc
+import datetime
 import pandas as pd
 from dash import Dash, html, dcc, Input, Output, dash_table, ctx
 from dash.dash_table.Format import Format, Scheme, Trim
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
+import torch
+from torch_geometric.data import Batch
+
 from data import elasticity_func
 from data import Lattice, Catalogue
 # from exp_180.dash_mace import get_model
 from data.datasets import GLAMM_rhotens_Dataset as GLAMM_Dataset
-import torch
-from torch_geometric.data import Batch
-import datetime
+from utils import plotting
 
 print(f'{datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")} : Loading model...')
 class Model:
@@ -24,9 +26,14 @@ model = Model()
 print(f'{datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")} : Model loaded')
 print(f'{datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")} : Loading catalogue...')
 cat = Catalogue.from_file('./Unit_Cell_Catalog.txt', 1)
+LATTICE_NAMES = {'octet': 'cub_Z12.0_E19', 'simple-cubic': 'cub_Z06.0_E1'}
 
 def load_lattice(name: str):
-    data = cat[name]
+    if name in LATTICE_NAMES:
+        _name = LATTICE_NAMES[name]
+    else:
+        _name = name
+    data = cat[_name]
     nodes = pd.DataFrame(data['nodal_positions'], columns=['x','y','z'])
     nodes['#'] = np.arange(len(nodes))
     edges = pd.DataFrame(data['edge_adjacency'], columns=['n0','n1'])
@@ -157,7 +164,7 @@ app.layout = dbc.Container(
                 html.Div(
                     [
                         html.H4("Unit cell"),
-                        dcc.Graph(id="lattice-graph"),
+                        dcc.Graph(id="lattice-graph", style={'height': '500px', 'width': '500px'}),
                     ]
                 ),
             ),
@@ -175,76 +182,6 @@ app.layout = dbc.Container(
     fluid=True,
 )
 
-
-def create_lattice_graph(updated_table_as_df, edges_table):
-    fig = go.Figure()
-    # fig = px.scatter_3d(updated_table_as_df, x='x', y='y', z='z', color='#')
-    fig.add_scatter3d(
-        x=updated_table_as_df['x'], y=updated_table_as_df['y'], z=updated_table_as_df['z'], 
-        mode='markers', marker=dict(size=6, color=updated_table_as_df['#']),
-        showlegend=False,
-    )
-    colororder = px.colors.qualitative.G10
-    edge_colors = [colororder[i%10] for i in range(len(edges_table))]
-
-    x = []
-    y = []
-    z = []
-    colors = []
-    for i_e, e in enumerate(edges_table):
-        if e['n0'] is None or e['n1'] is None:
-            continue
-        n0 = updated_table_as_df[updated_table_as_df['#']==e['n0']][['x','y','z']].values[0]
-        n1 = updated_table_as_df[updated_table_as_df['#']==e['n1']][['x','y','z']].values[0]
-        x_0, y_0, z_0 = n0
-        x_1, y_1, z_1 = n1
-        x.extend([x_0, x_1, None])
-        y.extend([y_0, y_1, None])
-        z.extend([z_0, z_1, None])
-        col = edge_colors[i_e]
-        colors.extend([col, col, col])
-
-    fig.add_scatter3d(
-        x=x, y=y, z=z,
-        line={'width':7,'color':colors},
-        mode='lines',
-        hoverinfo='none',
-        connectgaps=False,
-        showlegend=False,   
-    )
-    fig.update_layout(width=500, height=500)
-    fig.update_traces(showlegend=False)
-    return fig
-
-def create_surface_graph(C: np.ndarray):
-    assert C.shape==(3,3,3,3)
-        
-    u, v = np.mgrid[0:2*np.pi:100j, 0:np.pi:100j]
-    X = np.sin(v)*np.cos(u)
-    Y = np.sin(v)*np.sin(u)
-    Z = np.cos(v)
-    x = X.flatten()
-    y = Y.flatten()
-    z = Z.flatten()
-    pos = np.column_stack((x,y,z))
-    e = np.einsum('ai,aj,ak,al,ijkl->a',pos,pos,pos,pos,C)
-    rows, cols = X.shape
-    indices = np.unravel_index(np.arange(len(e)), (rows, cols))
-    E = np.zeros_like(X)
-    E[indices] = e
-
-    R = E
-    X = R*np.sin(v)*np.cos(u)
-    Y = R*np.sin(v)*np.sin(u)
-    Z = R*np.cos(v)
-
-    fig = go.Figure()
-
-    fig.add_trace(
-        go.Surface(x=X, y=Y, z=Z, surfacecolor=R)
-    )
-
-    return fig
 
 @app.callback(
     Output("nodes-table", "data"),
@@ -280,11 +217,11 @@ def update_table_and_figure(user_datatable: None or list, edges_table: None or l
             edges_table.append({'n0':None, 'n1':None})
 
     if ctx.triggered_id == "octet-btn":
-        updated_table, updated_edges = load_lattice('cub_Z12.0_E19')
+        updated_table, updated_edges = load_lattice('octet')
         edges_table = updated_edges.to_dict("records")
         
     if ctx.triggered_id == "simple-cubic-btn":
-        updated_table, updated_edges = load_lattice('cub_Z06.0_E1')        
+        updated_table, updated_edges = load_lattice('simple-cubic')        
         edges_table = updated_edges.to_dict("records")
 
     updated_table["#"] = updated_table["#"].astype(int)
@@ -299,15 +236,17 @@ def update_table_and_figure(user_datatable: None or list, edges_table: None or l
     # print(pyg_data)
     batch = Batch.from_data_list([pyg_data[0]])
 
-    lattice_chart = create_lattice_graph(updated_table, edges_table)
+    lattice_chart = plotting.plotly_unit_cell_3d(
+        lat, repr='fundamental', coords='transformed',
+        show_uc_box=True
+    )
     
     with torch.no_grad():
         C2 = model.model(batch)
         # print(C2)
         C2 = C2['stiffness'][0].cpu()
     C4 = elasticity_func.stiffness_Mandel_to_cart_4(C2).numpy()
-    # C4 = elasticity_func.stiffness_Voigt_to_4th_order(C)
-    stiffness_chart = create_surface_graph(C4)
+    stiffness_chart = plotting.plotly_stiffness_surf(C4)
 
     return updated_table.to_dict("records"), edges_table, lattice_chart, stiffness_chart
 
