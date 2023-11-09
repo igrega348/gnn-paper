@@ -1,10 +1,13 @@
 import copy
+import logging
 from collections.abc import Sequence, Iterable
-from typing import Optional, Tuple, List, Set, Dict
+from typing import Optional, Tuple, List, Set, Dict, Union
 import numpy as np
 import numpy.typing as npt
 from math import ceil
 from scipy.spatial import transform
+logging.getLogger('data.lattice').addHandler(logging.NullHandler())
+
 
 class Lattice:
     TOL_DIST: float = 1e-5
@@ -18,7 +21,9 @@ class Lattice:
 
     fundamental_edge_adjacency: npt.NDArray[np.int_]
     fundamental_tesselation_vecs: npt.NDArray[np.float_]
- 
+    fundamental_edge_map: npt.NDArray[np.int_]
+    fundamental_edge_radii: npt.NDArray[np.float_]
+
     node_types: dict
     
     # elasticity properties
@@ -29,7 +34,6 @@ class Lattice:
     # other properties
     lattice_constants: npt.NDArray[np.float_] = np.array([1.,1.,1.,90,90,90])
     rel_dens: float
-    edge_radii: npt.NDArray[np.float_]    
     ATTRS_TO_COPY: List = ['name', 'lattice_constants', 'UC_L']
     INIT_FORMAT: str = 'Lattice can be initialised in one of 3 ways.'\
                         ' No extra arguments can be passed. See documentation.'
@@ -219,6 +223,21 @@ class Lattice:
     def transformed_node_coordinates(self) -> npt.NDArray:
         nodes = self.reduced_node_coordinates
         return self.transform_coordinates(nodes)
+    
+    @property
+    def windowed_edge_radii(self) -> npt.NDArray:
+        """Calculate edge radii for windowed edges from fundamental edge radii
+
+        Returns:
+            npt.NDArray: edge radii for windowed edges
+        """
+        if not hasattr(self, 'fundamental_edge_map'):
+            raise AttributeError('Calculate fundamental representation first')
+        elif not hasattr(self, 'fundamental_edge_radii'):
+            raise AttributeError('Set radii of fundamental edges first')
+        else:
+            assert len(self.fundamental_edge_map)==self.num_edges
+            return self.fundamental_edge_radii[self.fundamental_edge_map]
 
 
     def calculate_UC_volume(self) -> float:
@@ -330,7 +349,7 @@ class Lattice:
     def calculate_edge_radius(
         self, rel_dens: float, coords: str = 'transformed'
     ) -> float:
-        """Set edge radii according to relative density.
+        """Calculate uniform edge radii according to relative density.
 
         .. math::
 
@@ -361,7 +380,47 @@ class Lattice:
 
         edge_radius = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
         return edge_radius
-                
+    
+    def calculate_relative_density(self, coords: str = 'transformed') -> float:
+        """Calculate relative density of the lattice.
+
+        Args:
+            coords (str, optional): Use 'transformed' or 'reduced' coordinates. \
+                Defaults to 'transformed'.
+
+        Returns:
+            float: relative density of the lattice
+        """
+        assert coords in ['reduced', 'transformed']
+        edge_lengths = self.calculate_edge_lengths(
+            edge_representation='cropped', coords=coords
+        )
+
+        vol_material = np.pi * np.sum(edge_lengths * self.windowed_edge_radii**2)
+
+        if coords=='reduced':
+            uc_vol = 1
+        else:
+            uc_vol = self.calculate_UC_volume()
+
+        rel_dens = vol_material/uc_vol
+        return rel_dens
+    
+    
+    def set_fundamental_edge_radii(self, edge_radii: Union[Iterable, float]) -> None:
+        """Set radii of fundamental edges.
+
+        Args:
+            edge_radii (Union[Iterable, float]): list of edge radii or single float
+        """
+        if isinstance(edge_radii, float):
+            self.fundamental_edge_radii = edge_radii*np.ones(self.fundamental_edge_adjacency.shape[0])
+            logging.debug(f'Set radii of all edges to {edge_radii}') # I could mark the entire code like this
+        elif isinstance(edge_radii, Iterable):
+            assert len(edge_radii)==self.num_fundamental_edges
+            self.fundamental_edge_radii = edge_radii
+        else:
+            raise TypeError('edge_radii must be float or Iterable')
 
     def collapse_nodes_onto_boundaries(self, tol=1e-4):
         """
@@ -1163,13 +1222,16 @@ class Lattice:
         nodes = self.reduced_node_coordinates
 
         used_edge_indices = []
-        new_edges = []
-        t_vecs = []
+        new_edges = [] # fundamental edge adjacency
+        t_vecs = [] # tesselation vectors
+        fundamental_edge_map = np.full(edges.shape[0], -1, dtype=np.int_)
         for i_edge, e in enumerate(edges):
             if i_edge in used_edge_indices: 
                 # every edge is transcribed just once
-                continue 
+                continue
+            curr_fund_edge_index = len(new_edges)
             used_edge_indices.append(i_edge) 
+            fundamental_edge_map[i_edge] = curr_fund_edge_index
             loc_edge = []
             loc_t_vecs = [np.zeros(3), np.zeros(3)]
             for i_point, point_num in enumerate(e):
@@ -1188,6 +1250,7 @@ class Lattice:
                         partner_edge = edges[conn_edge_ind]
                         partner = (set(partner_edge) - {p_loc}).pop()
                         used_edge_indices.append(conn_edge_ind) 
+                        fundamental_edge_map[conn_edge_ind] = curr_fund_edge_index
                     else: 
                         # pick periodic partner and 
                         # need to add to translation vector
@@ -1215,6 +1278,7 @@ class Lattice:
         
         self.fundamental_edge_adjacency = fund_adjacency
         self.fundamental_tesselation_vecs = t_vecs
+        self.fundamental_edge_map = fundamental_edge_map
 
     def crop_unit_cell(
         self, reduced_edge_coords: Optional[npt.NDArray] = None
@@ -1719,6 +1783,30 @@ class Lattice:
         if hasattr(self, 'fundamental_tesselation_vecs') and fundamental:
             d['fundamental_tesselation_vecs'] = self.fundamental_tesselation_vecs
         return d
+
+    @staticmethod
+    def make_simple_cubic() -> "Lattice":
+        node_coords = [
+            [0.5,0.5,0.5],
+            [0,0.5,0.5],
+            [1,0.5,0.5],
+            [0.5,0,0.5],
+            [0.5,1,0.5],
+            [0.5,0.5,0],
+            [0.5,0.5,1]
+        ]
+        edge_adj = [
+            [0,1],
+            [0,2],
+            [0,3],
+            [0,4],
+            [0,5],
+            [0,6],
+        ]
+        lat = Lattice(
+            name='simple_cubic',nodal_positions=node_coords,edge_adjacency=edge_adj
+        )
+        return lat
 
 
 class WindowingError(Exception):

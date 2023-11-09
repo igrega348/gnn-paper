@@ -41,9 +41,9 @@ def check_dict(d: dict, required_val: int = 10) -> list:
                 failed.append(lat_name)
     return failed
 # %%
-def main(cat_num: int):
-    dname = 'E:/new_dset_1/'
-    input_cat_fn = os.path.join(dname, f'm_cat_{cat_num:02d}.lat')
+def main(cat_num: int, post_script: str = ''):
+    dname = 'C:/temp/meshing_comparison/'
+    input_cat_fn = os.path.join(dname,f'm_cat_{cat_num:02d}{post_script}.lat')
     print('Loading catalogue from')
     print('\t', input_cat_fn)
     cat = Catalogue.from_file(input_cat_fn, 0)
@@ -51,7 +51,7 @@ def main(cat_num: int):
     input_dict = create_dict(cat.names)
 
 
-    abq_archive_fn = os.path.join(dname, f'processed_data_{cat_num}.tar.gz')
+    abq_archive_fn = os.path.join(dname, f'processed_data_{cat_num}{post_script}.tar.gz')
 
     updated_cat_dict = dict()
     failed = []
@@ -110,9 +110,13 @@ def main(cat_num: int):
 
     cat = Catalogue.from_dict(updated_cat_dict)
     print(cat)
-    cat.to_file(os.path.join(dname, f'cat_{cat_num:02d}.lat'))
+    cat.to_file(os.path.join(dname, f'cat_{cat_num:02d}{post_script}.lat'))
 # %%
 if __name__=="__main__":
     cat_num = int(sys.argv[1])
-    main(cat_num)
+    for beam_type in ['B31','B33']:
+        for tess in [1,3,5]:
+            main(cat_num, f'_{tess}_{beam_type}')
+            main(cat_num, f'_{tess}_{beam_type}_2')
+    # main(cat_num)
 # %%

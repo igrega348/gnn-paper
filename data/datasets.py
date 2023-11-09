@@ -75,98 +75,6 @@ def relabel_edges(edges: npt.NDArray, edge_map: npt.NDArray):
     new_edges = np.row_stack(new_edges)
     return new_edges
 
-def _load_cat_file(target: Tuple[str, List]):
-    fn, imperfection_levels = target
-    logging.info(f'Loading dataset {fn}')
-    cat = Catalogue.from_file(fn, 0)
-    loc_df = pd.DataFrame(cat)
-    return loc_df[loc_df['imperfection_level'].astype(float).isin(imperfection_levels)]
-
-def assemble_catalogue(
-    num_base_lattices: int,
-    imperfection_levels: Iterable,
-    num_imperf_realisations: int,
-    input_dir: str,
-    choose_base: str = 'first',
-    choose_imperf: str = 'first',
-    output_fn: Optional[str] = None,
-    return_df: bool = False,
-    multiprocessing: Optional[Union[bool, int]] = False,
-) -> None:
-    cat_fns = []
-    for fn in os.listdir(input_dir):
-        if fn.startswith('cat'):
-            cat_fns.append(osp.join(input_dir, fn))
-
-    imperfection_levels = [float(il) for il in imperfection_levels]
-    
-    if (not multiprocessing) or (multiprocessing<2):
-        df = pd.DataFrame()
-        for i_cat, fn in enumerate(cat_fns):
-            logging.info(f'Loading dataset {fn}')
-            cat = Catalogue.from_file(fn, 0)
-            loc_df = pd.DataFrame(cat)
-            df = pd.concat(
-                [df, loc_df[loc_df['imperfection_level'].astype(float).isin(imperfection_levels)]], 
-                axis=0
-            )
-            # if we already have more base lattice than we need, we can stop
-            if len(df['base_name'].unique())>=num_base_lattices:
-                break
-    else:
-        assert isinstance(multiprocessing, int), "multiprocessing has to be boolean or integer"
-        targets = [(fn, imperfection_levels) for fn in cat_fns]
-        with Pool(processes=multiprocessing) as p:
-            dfs = p.map(_load_cat_file, targets)
-        df = pd.concat(dfs, axis=0)
-        del dfs
-
-    uq_base_names = df['base_name'].unique()
-    if isinstance(choose_base, Iterable):
-        chosen_base_names = np.array(choose_base)
-    elif choose_base=='first':
-        chosen_base_names = uq_base_names[:num_base_lattices]
-    elif choose_base=='last':
-        chosen_base_names = uq_base_names[-num_base_lattices:]
-    elif choose_base=='random':
-        np.random.shuffle(uq_base_names)
-        chosen_base_names = uq_base_names[:num_base_lattices]
-    
-    df = df[df['base_name'].isin(chosen_base_names)]
-
-    df.loc[:, 'imp_name'] = df['name'].apply(lambda x: '_'.join(x.split('_')[:5]))
-    num_imperf = {name:0 for name in df['imp_name'].unique()}
-    df.index = df.name
-
-    def func(row):
-        imp_name = row['imp_name']
-        imp_count = num_imperf[imp_name]
-        num_imperf[imp_name]+=1
-        return imp_count
-
-    df.loc[:, 'imperf_count'] = df.apply(func, axis=1)
-    if choose_imperf=='first':
-        selected_df = df.loc[df['imperf_count']<num_imperf_realisations, :]
-    elif choose_imperf=='last':
-        imp_totals = df.groupby(by='imp_name')['imperf_count'].max() + 1
-        selection_mask = (df['imperf_count'] >= imp_totals.loc[df['imp_name']].values - num_imperf_realisations)
-        selected_df = df.loc[selection_mask, :]
-    else:
-        raise ValueError('choose_imperf has to be `first` or `last`')
-    
-    logging.info(f'Selected {selected_df.shape[0]} lattices')
-    
-    if isinstance(output_fn, str) and len(output_fn)>0:
-        selected_lat_dict = selected_df.to_dict('index')
-        new_cat = Catalogue.from_dict(selected_lat_dict)
-        new_cat.to_file(output_fn)
-        logging.info(f'Saving catalogue to file {output_fn}')
-
-    if return_df:
-        return selected_df
-    else:
-        return None
-
 def get_uc_volume(crys_data: npt.NDArray) -> float:
     a = crys_data[0]
     b = crys_data[1]
@@ -229,7 +137,7 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
             representation: str = 'fund_inner',
             node_ft: str = 'ones',
             edge_ft: str = 'r',
-            graph_ft_format: str = 'Voigt',
+            graph_ft_format: str = 'cartesian_4',
             n_reldens: int = 1,
             choose_reldens: str = 'first',
             multiprocessing: Optional[Union[bool, int]] = False,
@@ -300,7 +208,7 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
        
 
     def download(self):
-        assert osp.isfile(self.catalogue_path)
+        assert osp.isfile(self.catalogue_path), f'Catalogue file {self.catalogue_path} does not exist'
         shutil.copy(self.catalogue_path, self.raw_dir)
         # for url in [self.raw_url0]:
         #     file_path = download_url(url, self.raw_dir)
@@ -353,7 +261,6 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         edge_vecs = nodal_positions[edge_adjacency[:,1]] - nodal_positions[edge_adjacency[:,0]]
         edge_vecs += tessellation_vecs
         edge_lengths = np.linalg.norm(edge_vecs, axis=1)
-        sum_edge_lengths = edge_lengths.sum()
         uc_vol = get_uc_volume(lattice_constants)
 
         num_uq_nodes = len(np.unique(edge_adjacency))
@@ -366,12 +273,22 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         _nodal_pos = torch.tensor(nodal_positions, dtype=torch.float)
 
         out_list = []
-        assert len(compliance_tensors)>1, f'Lattice {name} does not have enough data'
+        assert len(compliance_tensors)>0, f'Lattice {name} does not have enough data'
         avail_reldens = list(compliance_tensors.keys())
         for rel_dens in avail_reldens[reldens_slice]:
             
-            edge_rad = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
-            edge_radii = edge_rad*np.ones(edge_adjacency.shape[0])
+            if 'fundamental_edge_radii' in lat_data:
+                _fund_rel_dens = np.array(list(lat_data['fundamental_edge_radii'].keys()))
+                # Find closest relative density but ignore small rounding errors
+                _rel_dens = _fund_rel_dens[np.argmin(np.abs(_fund_rel_dens-rel_dens))]
+                assert np.abs(_rel_dens-rel_dens)<1e-4, f'Closest relative density {_rel_dens} is not close enough to {rel_dens}'
+                edge_radii = np.array(lat_data['fundamental_edge_radii'][_rel_dens]).reshape(-1,1)
+                edge_radii = np.concatenate((edge_radii, edge_radii), axis=0)
+                assert edge_radii.shape[0]==edge_adjacency.shape[0], f'Edge radii shape {edge_radii.shape} does not match edge adjacency shape {edge_adjacency.shape}'
+            else:
+                sum_edge_lengths = edge_lengths.sum()
+                edge_rad = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
+                edge_radii = edge_rad*np.ones(edge_adjacency.shape[0])
 
             # ground truth compliance need not be given
             compliance = compliance_tensors[rel_dens]

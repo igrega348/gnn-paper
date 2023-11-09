@@ -56,7 +56,7 @@ def surface_plot(true, pred, dataset, nplot: int, fn: str):
 
 def get_nodes_edge_coords(
     lat, repr, coords, highlight_nodes: Optional[Iterable]=None
-) -> Tuple[np.ndarray, np.ndarray, Iterable, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, Iterable, np.ndarray, np.ndarray]:
 
     nodes = lat.reduced_node_coordinates
 
@@ -72,6 +72,10 @@ def get_nodes_edge_coords(
         edges = lat.edge_adjacency
         edge_coords = lat._node_adj_to_ec(nodes, edges)
         node_numbers = np.arange(nodes.shape[0])
+        try:
+            edge_widths = lat.windowed_edge_radii
+        except AttributeError:
+            edge_widths = 2*np.ones(edges.shape[0])
     elif repr=='fundamental':
         if not hasattr(lat, 'fundamental_edge_adjacency'):
             lat.calculate_fundamental_representation()
@@ -85,17 +89,24 @@ def get_nodes_edge_coords(
                 "Highlighted node must be a fundamental node"
             highlight_nodes = np.searchsorted(uq_inds, highlight_nodes)
         node_numbers = uq_inds
+        try:
+            edge_widths = lat.fundamental_edge_radii
+        except AttributeError:
+            edge_widths = 2*np.ones(edges.shape[0])
     else:
         raise ValueError
+    
+    # scale mean to 2
+    edge_widths = 2*edge_widths/np.mean(edge_widths)
 
-    return nodes@(Q.T), edge_coords@(Q6.T), highlight_nodes, node_numbers
+    return nodes@(Q.T), edge_coords@(Q6.T), highlight_nodes, node_numbers, edge_widths
 
 def plot_unit_cell_2d(
     lat, repr='cropped', coords='reduced', show_node_numbers=True,
     ax=None
     ) -> plt.Axes:
     
-    nodes, edge_coords, _, node_numbers = get_nodes_edge_coords(
+    nodes, edge_coords, _, node_numbers, edge_widths = get_nodes_edge_coords(
         lat, repr, coords
     )
     
@@ -112,7 +123,8 @@ def plot_unit_cell_2d(
         segments.append([(x_0, y_0), 
                         (x_1, y_1)])
         colors.append(f'C{i_e%5}')
-    lc = LineCollection(segments, colors=colors, linewidths=2)
+
+    lc = LineCollection(segments, colors=colors, linewidths=edge_widths)
     ax.add_collection(lc)
     if show_node_numbers:
         for n, num in zip(nodes, node_numbers):
@@ -122,11 +134,11 @@ def plot_unit_cell_2d(
     return ax
 
 def plot_unit_cell_3d(
-    lat, repr='cropped', coords='reduced', show_node_numbers=True,
+    lat, repr='cropped', coords='reduced', show_node_numbers=False,
     ax=None
     ) -> plt.Axes:
 
-    nodes, edge_coords, _, node_numbers = get_nodes_edge_coords(
+    nodes, edge_coords, _, node_numbers, edge_widths = get_nodes_edge_coords(
         lat, repr, coords
     )
     
@@ -143,7 +155,7 @@ def plot_unit_cell_3d(
         segments.append([(x_0, y_0, z_0), 
                         (x_1, y_1, z_1)])
         colors.append(f'C{i_e%5}')
-    lc = Line3DCollection(segments, colors=colors, linewidths=2)
+    lc = Line3DCollection(segments, colors=colors, linewidths=edge_widths)
     ax.add_collection(lc)
     if show_node_numbers:
         for n, num in zip(nodes, node_numbers):
@@ -160,7 +172,7 @@ def plotly_unit_cell_3d(
     highlight_edges: Optional[Iterable] = None,
     show_uc_box: bool = False
     ):
-    nodes, edge_coords, highlight_nodes, node_numbers = get_nodes_edge_coords(
+    nodes, edge_coords, highlight_nodes, node_numbers, edge_widths = get_nodes_edge_coords(
         lat, repr, coords, highlight_nodes
     )
 

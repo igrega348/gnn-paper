@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Iterable, List, Union
 import numpy as np
 from tqdm import trange
@@ -173,6 +174,7 @@ class Catalogue:
                 - `compliance_tensors`
                 - `fundamental_edge_adjacency`
                 - `fundamental_tesselation_vecs`
+                - `fundamental_edge_radii`
                 - `base_name`
                 - `imperfection_kind`
                 - `imperfection_level`
@@ -227,6 +229,21 @@ class Catalogue:
                     line = ','.join(nums)
                     lines.append(line)
                 lines.append('Compliance tensors end')
+                lines.append('')
+
+            
+            if 'fundamental_edge_radii' in lat_dict:
+                assert 'fundamental_edge_adjacency' in lat_dict
+                lines.append('Fundamental edge radii start')
+                fundamental_edge_radii = lat_dict['fundamental_edge_radii']
+                for rel_dens in sorted(fundamental_edge_radii.keys()):
+                    lines.append(f'-> at relative density {rel_dens}:')
+                    r = fundamental_edge_radii[rel_dens]
+                    assert len(r)==len(lat_dict['fundamental_edge_adjacency'])
+                    nums = [f'{x:.5g}' for x in r]
+                    line = ','.join(nums)
+                    lines.append(line)
+                lines.append('Fundamental edge radii end')
                 lines.append('')
             
             assert ('reduced_node_coordinates' in lat_dict) or ('nodal_positions' in lat_dict)
@@ -289,6 +306,7 @@ class Catalogue:
                 - `edge_adjacency`: nested list of shape (num_edges, 2) (0-indexed)
                 - `fundamental_edge_adjacency`: nested list of shape (num_fundamental_edges, 2) (0-indexed)
                 - `fundamental_tesselation_vecs`: nested list of shape (num_fundamental_edges, 6) (0-indexed)
+                - `fundamental_edge_radii`: dictionary {rel_dens: list of edge radii}
 
             The dictionary can be unpacked in the creation of a `Lattice` object
 
@@ -308,7 +326,7 @@ class Catalogue:
         uc_dict['name'] = name
         
         compl_start = compl_end = None
-        fund_ea_start = fund_tessvec_start = None
+        fund_ea_start = fund_er_start = fund_tessvec_start = None
         nodal_hash = None
 
         for i_line, line in enumerate(lines):
@@ -343,6 +361,10 @@ class Catalogue:
                 fund_ea_start = i_line
             elif 'Fundamental tesselation vectors' in line:
                 fund_tessvec_start = i_line
+            elif 'Fundamental edge radii start' in line:
+                fund_er_start = i_line
+            elif 'Fundamental edge radii end' in line:
+                fund_er_end = i_line
             
 
         nodal_coords = []
@@ -409,6 +431,18 @@ class Catalogue:
                     compliance_tensors[rel_dens] = S
             uc_dict['compliance_tensors'] = compliance_tensors
 
+        if isinstance(fund_er_start, int):
+            assert isinstance(fund_er_end, int)
+            fund_edge_radii = dict()
+            for i_line in range(fund_er_start+1, fund_er_end):
+                line = lines[i_line]
+                if 'at relative density' in line:
+                    rel_dens = float(line.rstrip(':').split('density')[1])
+                    line = lines[i_line+1]
+                    nums = [float(x) for x in line.split(',')]
+                    fund_edge_radii[rel_dens] = nums
+            uc_dict['fundamental_edge_radii'] = fund_edge_radii
+
         return uc_dict
 
     def to_file(self, fn: str) -> None:
@@ -424,5 +458,6 @@ class Catalogue:
             outlines.extend(self.lines[name])
         
         outlines = [line + '\n' for line in outlines]
+        os.makedirs(os.path.dirname(fn), exist_ok=True)
         with open(fn, 'w') as fout:
             fout.writelines(outlines)

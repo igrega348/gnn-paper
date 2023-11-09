@@ -31,7 +31,7 @@ def guess_normals(t_vec: np.ndarray):
         guess = np.random.rand(3)
         guess = guess / np.linalg.norm(guess)
         dot = np.dot(guess, t)
-        if np.abs(dot)<0.5:
+        if np.abs(dot)<0.86:
             n1 = guess - t*dot
             n1 = n1 / np.linalg.norm(n1)
             n2 = np.cross(t, n1)
@@ -39,7 +39,8 @@ def guess_normals(t_vec: np.ndarray):
     raise RuntimeError(f'Normal not found for vector {t_vec}')
 # %%
 def mesh_lattice(
-    nodes: np.ndarray, edges: np.ndarray, max_length: float, min_div: int
+    nodes: np.ndarray, edges: np.ndarray, max_length: float, min_div: int,
+    _guess_normals: Optional[bool] = True
 ):
     meshed_nodes = []
     meshed_elements = []
@@ -66,17 +67,21 @@ def mesh_lattice(
             _x0 = _x1
         node_list.append(node_1)
         
-        n1, n2 = guess_normals(t_vec=t_unit)
+        element_dict = {'node_sequence':tuple(node_list), 'physical_strut':(node_0, node_1), 'i_edge':i_edge}
+        if _guess_normals:
+            n1, n2 = guess_normals(t_vec=t_unit)
+            element_dict.update({'n1':n1, 'n2':n2})
 
-        meshed_elements.append({'node_sequence':tuple(node_list), 'n1':n1, 'n2':n2, 'physical_strut':(node_0, node_1)})
+        meshed_elements.append(element_dict)
     
     meshed_nodes = np.row_stack(meshed_nodes)
     return meshed_nodes, meshed_elements
 # %%
 def write_abaqus_inp(
-    lat: "Lattice", loading : List[Tuple], 
+    lat: "Lattice",
     strut_radii: Iterable,
     metadata : Dict[str, str], 
+    loading: List[Tuple] = [(1,1,1.0),(1,2,1.0),(1,3,1.0),(2,1,0.5),(2,2,0.5),(2,3,0.5)],
     fname : Optional[str] = None,
     element_type: Optional[str] = 'B33',
     ):
@@ -257,11 +262,12 @@ def write_abaqus_inp(
 # %%
 def write_abaqus_inp_normals(
     lat: "Lattice",
-    strut_radii: Iterable,
+    strut_radii: np.ndarray,
     metadata : Dict[str, str], 
     fname : Optional[str] = None,
     element_type: Optional[str] = 'B33',
-    loading: List[Tuple] = [(1,1,1.0),(1,2,1.0),(1,3,1.0),(2,1,0.5),(2,2,0.5),(2,3,0.5)]
+    loading: List[Tuple] = [(1,1,1.0),(1,2,1.0),(1,3,1.0),(2,1,0.5),(2,2,0.5),(2,3,0.5)],
+    mesh_params: Dict[str, Union[float, int]] = {'max_length':1, 'min_div':3}
     ):
     """Write abaqus input script for a specific lattice and loading 
 
@@ -285,6 +291,14 @@ def write_abaqus_inp_normals(
             Defaults to None.
 
     """
+    # enable variable edge radius
+    assert strut_radii.ndim==2
+    assert strut_radii.shape[0]==1 or strut_radii.shape[0]==lat.edge_adjacency.shape[0]
+    if strut_radii.shape[0]==1:
+        num_edges = lat.edge_adjacency.shape[0]
+        strut_radii = np.tile(strut_radii, (num_edges,1))
+    num_instances = strut_radii.shape[1]
+
     lines = []
     lines.append('*Heading')
     lines.append('** Start header')
@@ -306,7 +320,7 @@ def write_abaqus_inp_normals(
     nodes = lat.transformed_node_coordinates
     edges = lat.edge_adjacency
     periodic_pairs = lat.get_periodic_partners()
-    meshed_nodes, meshed_elements = mesh_lattice(nodes, edges, max_length=1, min_div=3)
+    meshed_nodes, meshed_elements = mesh_lattice(nodes, edges, **mesh_params)
     assert np.allclose(nodes, meshed_nodes[:len(nodes)]) # make sure physical nodes are copied without changing order
     #
 
@@ -332,7 +346,7 @@ def write_abaqus_inp_normals(
 
     lines.append('**')
     # REFERENCE POINTS
-    for i_instance, _ in enumerate(strut_radii):
+    for i_instance in range(num_instances):
         lines.append(f'*Part, name=INST{i_instance}-REF1')
         lines.append('*Node')
         lines.append('  1, -0.1, -0.1, -0.1')
@@ -349,14 +363,14 @@ def write_abaqus_inp_normals(
     lines.append('**')
     lines.append('*Assembly, name=Assembly')
     # for each instance:
-    for i_instance, strut_radius in enumerate(strut_radii):
+    for i_instance in range(num_instances):
         lines.append(f'*Instance, name=INST{i_instance}-LAT, part=LATTICE')
         lines.append(f'{i_instance*1.5:.4g} 0 0')
 
-        for edge_dict in meshed_elements:
+        for i_edge, edge_dict in enumerate(meshed_elements):
             node_0, node_1 = edge_dict['physical_strut']
             lines.append(f'*Beam Section, elset=STRUT_{node_0}-{node_1}, material=Material-1, section=CIRC')
-            lines.append(f'{strut_radius}') # radius of circular section
+            lines.append(f'{strut_radii[i_edge, i_instance]}') # radius of circular section
             n1 = edge_dict['n1']
             n2 = edge_dict['n2']
             # orientation of section
@@ -426,7 +440,7 @@ def write_abaqus_inp_normals(
         lines.append(f'*Step, name=Load-REF{load[0]}-dof{load[1]}, nlgeom=NO')
         lines.append('*Static')
         lines.append('1., 1., 1e-5, 1')
-        for i_instance, _ in enumerate(strut_radii):
+        for i_instance in range(num_instances):
             lines.append('*Boundary, OP=NEW')
             lines.append(f'INST{i_instance}-REF{load[0]}, {load[1]}, {load[1]}, {load[2]}')
         lines.append('*Restart, write, frequency=0')
@@ -438,6 +452,182 @@ def write_abaqus_inp_normals(
         lines.append('*Output, history, variable=PRESELECT')
         lines.append('*End Step')
         lines.append('**')
+
+    lines = [line + '\n' for line in lines]
+    
+    if isinstance(fname, str):
+        with open(fname, 'w') as fout:
+            fout.writelines(lines)
+    else: 
+        return lines
+    
+def write_abaqus_inp_nopbc(
+    lat: "Lattice",
+    strut_radii: np.ndarray,
+    metadata : Dict[str, str], 
+    fname : Optional[str] = None,
+    element_type: Optional[str] = 'B33',
+    node_sets: Optional[Dict[str, Iterable]] = None,
+    boundary_conditions: Optional[Dict[str, Iterable]] = None,
+    ):
+    """Write abaqus input script for a specific lattice and loading 
+
+    Parameters:
+            lat: Lattice
+            loading: list of 3-element tuples where first element is reference point number 
+                    second is degree of freedom to which displacement is applied
+                    and third is the magnitude of displacement
+            fname : name of input script file or stream to write to
+            metadata: dictionary that will be written in header
+
+    Args:
+        lat (Lattice): Lattice object
+        loading (List[Tuple]): list of 3-element tuples where first element \
+            is reference point number, second is degree of freedom \
+            to which displacement is applied \
+            and third is the magnitude of displacement
+        metadata (Dict[str, str]): Extra information to put in the *Header section
+        fname (Optional[str], optional): if `fname` is provided, output \
+            is written to file `fname`. Otherwise, return lines of text. \
+            Defaults to None.
+
+    """
+    # enable variable edge radius
+    assert strut_radii.ndim==2
+    assert strut_radii.shape[0]==1 or strut_radii.shape[0]==lat.edge_adjacency.shape[0]
+    one_elset = False
+    if strut_radii.shape[0]==1:
+        one_elset = True
+        # num_edges = lat.edge_adjacency.shape[0]
+        # strut_radii = np.tile(strut_radii, (num_edges,1))
+    num_instances = strut_radii.shape[1]
+
+    lines = []
+    lines.append('*Heading')
+    lines.append('** Start header')
+    for step_name in metadata:
+        lines.append(f'**{step_name}: {metadata[step_name]}')
+    lines.append('** End header')
+    lines.append('**')
+    lines.append('**')
+    lines.append('*Material, name=Material-1')
+    lines.append('*Elastic')
+    lines.append('1., 0.3')
+    lines.append('**')
+    lines.append('** PARTS')
+    lines.append('**')
+    
+    lines.append(f'*Part, name=LATTICE')
+
+    # no more calls to `lat` after this
+    nodes = lat.transformed_node_coordinates
+    edges = lat.edge_adjacency
+    if one_elset:
+        meshed_nodes, meshed_elements = mesh_lattice(nodes, edges, max_length=1, min_div=3, guess_normals=False)
+    else:
+        meshed_nodes, meshed_elements = mesh_lattice(nodes, edges, max_length=1, min_div=3)
+    assert np.allclose(nodes, meshed_nodes[:len(nodes)]) # make sure physical nodes are copied without changing order
+    #
+
+    lines.append('**')
+    lines.append('*Node')
+    for k,node in enumerate(meshed_nodes):
+        # Abaqus uses 1-indexing
+        lines.append(f'{k+1}, {node[0]:.8g}, {node[1]:.8g}, {node[2]:.8g}')
+
+    lines.append('**')
+    lines.append('** Elements with element sets')
+    if one_elset:
+        lines.append(f'*Element, type={element_type}, elset=FULL_LATTICE')
+    elem_num = 1
+    for edge_dict in meshed_elements:
+        node_0, node_1 = edge_dict['physical_strut']
+        if not one_elset:
+            lines.append(f'*Element, type={element_type}, elset=STRUT_{node_0}-{node_1}')
+        node_sequence = edge_dict['node_sequence']
+        for _n0, _n1 in zip(node_sequence[:-1], node_sequence[1:]):
+            lines.append(f'{elem_num}, {_n0+1}, {_n1+1}')
+            elem_num += 1
+
+    lines.append('**')
+
+    lines.append('* End Part')
+
+    lines.append('**')
+   
+    # ASSEMBLY
+    lines.append('**')
+    lines.append('** ASSEMBLY')
+    lines.append('**')
+    lines.append('*Assembly, name=Assembly')
+    # for each instance:
+    for i_instance in range(num_instances):
+        lines.append(f'*Instance, name=INST{i_instance}-LAT, part=LATTICE')
+        lines.append(f'{i_instance*1.5:.4g} 0 0')
+
+        if one_elset:
+            lines.append(f'*Beam Section, elset=FULL_LATTICE, material=Material-1, section=CIRC')
+            lines.append(f'{strut_radii[0, i_instance]}') # radius of circular section
+            # orientation of section
+            normal_vec = get_common_normal_guess(nodes, edges)
+            lines.append(', '.join([f'{x:.5g}' for x in normal_vec]))
+        else:
+            for i_edge, edge_dict in enumerate(meshed_elements):
+                node_0, node_1 = edge_dict['physical_strut']
+                lines.append(f'*Beam Section, elset=STRUT_{node_0}-{node_1}, material=Material-1, section=CIRC')
+                lines.append(f'{strut_radii[i_edge, i_instance]}') # radius of circular section
+                n1 = edge_dict['n1']
+                n2 = edge_dict['n2']
+                # orientation of section
+                lines.append(', '.join([f'{x:.5g}' for x in n1] + [f'{x:.5g}' for x in n2]))
+
+        lines.append('**')
+        lines.append('*End Instance')
+
+        # node sets
+        if node_sets is not None:
+            lines.append('**')
+            lines.append('** Node Sets')
+            for step_name in node_sets:
+                lines.append(f'*Nset, nset={step_name}-INST{i_instance}, instance=INST{i_instance}-LAT')
+                if len(node_sets[step_name])<=10:
+                    lines.append(', '.join([str(x+1) for x in node_sets[step_name]]))
+                else:
+                    num_chunks = int(np.ceil(len(node_sets[step_name])/10))
+                    for i_chunk in range(num_chunks):
+                        lines.append(', '.join([str(x+1) for x in node_sets[step_name][i_chunk*10:(i_chunk+1)*10]]) + ',')
+            lines.append('**')
+
+
+
+    lines.append('*End Assembly')
+    lines.append('**')
+
+    if boundary_conditions is not None:
+        assert 'Initial' in boundary_conditions
+        lines.append('** INITIAL CONDITIONS')
+        init_bc = boundary_conditions.pop('Initial')
+        for bc in init_bc:
+            for i_instance in range(num_instances):
+                lines.append('*Boundary')
+                lines.append(f'{bc["NSET"]}-INST{i_instance}, {bc["dofs"]}')
+        lines.append('**')
+        lines.append('** STEPS')
+        for step_name in boundary_conditions:
+            lines.append(f'*Step, name={step_name}, nlgeom=NO')
+            lines.append('*Static')
+            lines.append('1., 1., 1e-5, 1')
+            for bc in boundary_conditions[step_name]:
+                for i_instance in range(num_instances):
+                    lines.append('*Boundary')
+                    lines.append(f'{bc["NSET"]}-INST{i_instance}, {bc["dofs"]}')
+            lines.append('*Restart, write, frequency=0')
+            lines.append('*Output, field')
+            lines.append('*Node Output')
+            lines.append('U, RF')
+            lines.append('*Output, history')
+            lines.append('*End Step')
+
 
     lines = [line + '\n' for line in lines]
     

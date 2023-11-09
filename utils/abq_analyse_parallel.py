@@ -28,12 +28,79 @@ def parse_input_script(fn):
         odict[key] = val
     return odict
 
+def extract_one(jobname, wdir, log_file):
+    ODBNAME = os.path.join(wdir, '{}.odb'.format(jobname))
+    FILEOUTPUT1 = os.path.join(wdir, '{}.json'.format(jobname))
+    
+    # Read the header from input script
+    fn = os.path.join(wdir, '{}.inp'.format(jobname))
+    if not os.path.isfile(fn):
+        print >> log_file, 'i = {} failed. No input file'.format(str(jobname))
+        return
+    odict = parse_input_script(fn)
+    relative_densities = odict['Relative densities'].split(',')
+    relative_densities = [float(rd) for rd in relative_densities]
+    print >> log_file, 'i = {}, relative_densities = {}'.format(str(jobname), str(relative_densities))
+    # strut_radii = odict['Strut radii'].split(',')
+    # strut_radii = [float(sr) for sr in strut_radii]
+
+    ###############################################################################################################
+    o1 = session.openOdb(name=ODBNAME, readOnly=True)
+    session.viewports['Viewport: 1'].setValues(displayedObject=o1)    
+    odb = session.odbs[ODBNAME]
+    assembly = odb.rootAssembly
+    # 
+    loading_steps = ['Load-REF1-dof1','Load-REF1-dof2','Load-REF1-dof3','Load-REF2-dof1','Load-REF2-dof2','Load-REF2-dof3']
+    # get instances
+    instance_nums = sorted(list(set(
+        [int(x.split('-')[0].lstrip('INST')) for x in assembly.instances.keys()]
+    )))
+    instances_dict = { num:OrderedDict() for num in instance_nums }
+
+    for i_instance, rd in enumerate(relative_densities):
+        # strut_radius = odb.profiles[odb.sections[assembly.instances['INST{}-LAT'.format(i_instance)].sectionAssignments[0].sectionName].profile].r
+        # assert abs(strut_radius - strut_radii[i_instance]) < 1e-5
+        instances_dict[i_instance].update({
+            'Relative density':rd,
+            # 'Strut radius':strut_radius
+        })
+        for step_name in loading_steps:
+            instances_dict[i_instance][step_name] = {}
+
+    #print >> sys.__stdout__, 'odb steps {}, size {}'.format(list(odb.steps.keys()), len(odb.steps.keys()))
+    if len(odb.steps.keys())<1:
+        print >> log_file, 'i = {} failed. Not enough steps'.format(str(jobname))
+    else:
+        for step_name in loading_steps:
+            
+            if len(odb.steps['{}'.format(step_name)].frames)<2: continue
+            frame = odb.steps['{}'.format(step_name)].frames[-1]
+            allFields = frame.fieldOutputs
+            force = allFields['RF']
+            displacement = allFields['U']
+            for i_instance in instance_nums:
+                for ref_pt in [1,2]:
+                    refpt = assembly.nodeSets['INST{}-REF{}'.format(i_instance, ref_pt)]
+                    ref_pt_u = displacement.getSubset(region=refpt)
+                    ref_pt_rf = force.getSubset(region=refpt)
+                    for i_deg in [1,2,3]:
+                        instances_dict[i_instance][step_name]["REF{}, RF{}".format(ref_pt, i_deg)] = float(ref_pt_rf.values[0].data[i_deg-1])
+                        instances_dict[i_instance][step_name]["REF{}, U{}".format(ref_pt, i_deg)] = float(ref_pt_u.values[0].data[i_deg-1])
+
+    odict['Instances'] = instances_dict
+
+    with open(FILEOUTPUT1,'w') as fout:
+        json.dump(odict, fout, indent=4)
+    global count
+    count += 1
+    print >> log_file, 'i = {}'.format(str(count))
+    odb.close()
+
 def data_extractor(wdir):
     with open('abq_extract_log.log', 'a') as log_file:
         
         to_process = os.listdir(wdir)
         processed = []
-        count = 0
         
         while len(to_process)>0:
   
@@ -47,79 +114,21 @@ def data_extractor(wdir):
             while len(to_process) > 0:
                 jobname = to_process.pop()
                 processed.append(jobname)
-
-                ODBNAME = os.path.join(wdir, '{}.odb'.format(jobname))
-                FILEOUTPUT1 = os.path.join(wdir, '{}.json'.format(jobname))
                 
-                # Read the header from input script
-                fn = os.path.join(wdir, '{}.inp'.format(jobname))
-                odict = parse_input_script(fn)
-                relative_densities = odict['Relative densities'].split(',')
-                relative_densities = [float(rd) for rd in relative_densities]
-                strut_radii = odict['Strut radii'].split(',')
-                strut_radii = [float(sr) for sr in strut_radii]
-
-                ###############################################################################################################
-                o1 = session.openOdb(name=ODBNAME, readOnly=True)
-                session.viewports['Viewport: 1'].setValues(displayedObject=o1)    
-                odb = session.odbs[ODBNAME]
-                assembly = odb.rootAssembly
-                # 
-                loading_steps = ['Load-REF1-dof1','Load-REF1-dof2','Load-REF1-dof3','Load-REF2-dof1','Load-REF2-dof2','Load-REF2-dof3']
-                # get instances
-                instance_nums = sorted(list(set(
-                    [int(x.split('-')[0].lstrip('INST')) for x in assembly.instances.keys()]
-                )))
-                instances_dict = { num:OrderedDict() for num in instance_nums }
-
-                for i_instance, rd in enumerate(relative_densities):
-                    strut_radius = odb.profiles[odb.sections[assembly.instances['INST{}-LAT'.format(i_instance)].sectionAssignments[0].sectionName].profile].r
-                    assert abs(strut_radius - strut_radii[i_instance]) < 1e-5
-                    instances_dict[i_instance].update({
-                        'Relative density':rd,
-                        'Strut radius':strut_radius
-                    })
-                    for step_name in loading_steps:
-                        instances_dict[i_instance][step_name] = {}
-
-                #print >> sys.__stdout__, 'odb steps {}, size {}'.format(list(odb.steps.keys()), len(odb.steps.keys()))
-                if len(odb.steps.keys())<1:
-                    print >> log_file, 'i = {} failed. Not enough steps'.format(str(jobname))
-                else:
-                    for step_name in loading_steps:
-                        
-                        if len(odb.steps['{}'.format(step_name)].frames)<2: continue
-                        frame = odb.steps['{}'.format(step_name)].frames[-1]
-                        allFields = frame.fieldOutputs
-                        force = allFields['RF']
-                        displacement = allFields['U']
-                        for i_instance in instance_nums:
-                            for ref_pt in [1,2]:
-                                refpt = assembly.nodeSets['INST{}-REF{}'.format(i_instance, ref_pt)]
-                                ref_pt_u = displacement.getSubset(region=refpt)
-                                ref_pt_rf = force.getSubset(region=refpt)
-                                for i_deg in [1,2,3]:
-                                    instances_dict[i_instance][step_name]["REF{}, RF{}".format(ref_pt, i_deg)] = float(ref_pt_rf.values[0].data[i_deg-1])
-                                    instances_dict[i_instance][step_name]["REF{}, U{}".format(ref_pt, i_deg)] = float(ref_pt_u.values[0].data[i_deg-1])
-
-                odict['Instances'] = instances_dict
-
-                with open(FILEOUTPUT1,'w') as fout:
-                    json.dump(odict, fout, indent=4)
-                count += 1
-                print >> log_file, 'i = {}'.format(str(count))
-                odb.close()
+                extract_one(jobname, wdir, log_file)
 
                 # remove any files which have the job name but are not json
+                wdir_files = os.listdir(wdir)
                 for f in wdir_files:
-                    if jobname in f and not f.endswith('.json'):
-                            os.remove(os.path.join(wdir, f))
+                    if jobname in f and not (f.endswith('.json') or f.endswith('.lat')):
+                        os.remove(os.path.join(wdir, f))
             
 ###########################################################################
 args = sys.argv
 i = args.index('abq_wdir')
 wdir = args[i+1]
 assert os.path.isdir(wdir)
+count = 0
 
 with open('abq_extract_log.log', 'w') as log:
     print >> log, "Detected folder ", wdir

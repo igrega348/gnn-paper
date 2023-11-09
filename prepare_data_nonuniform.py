@@ -1,7 +1,7 @@
 # %%
 import sys
 import os
-from typing import Optional
+from io import BytesIO
 import tarfile
 import datetime
 from tqdm import tqdm
@@ -14,11 +14,7 @@ from data import Lattice, Catalogue
 from data import WindowingError, PeriodicPartnersError
 from utils import abaqus
 # %%
-def process_one(
-        lat_data: dict, dname: str,
-        mesh_params: dict = {'max_length':1.5, 'min_div':1},
-        element_type: str = 'B31'
-) -> list:
+def process_one(lat_data: dict, dname: str) -> list:
     os.makedirs(dname, exist_ok=True)
 
     MAX_TRY = 10
@@ -53,7 +49,6 @@ def process_one(
 
     if modified: # safety check again
         if lat.find_nodes_on_edges() or lat.find_edge_intersections():
-            discarded += 1
             return []
 
     try:
@@ -72,8 +67,8 @@ def process_one(
     if num_fundamental_nodes==1:
         imp_levels = [0.0]
     else:
-        # imp_levels = [0.0]
-        imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
+        imp_levels = [0.0, 0.02, 0.10]
+        # imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
 
     for imperfection_level in imp_levels:
 
@@ -101,12 +96,6 @@ def process_one(
                 print(f'Lattice {lat.name} failed')
                 break
 
-            r0 = np.sqrt(0.001)
-            r1 = np.sqrt(0.05)
-            r = np.linspace(r0,r1,NUM_RELDENS)
-            relative_densities = r**2
-            strut_radii = [lat_imp.calculate_edge_radius(rel_dens) for rel_dens in relative_densities]
-
             hsh = hash(lat_imp.reduced_node_coordinates.tobytes())
             base_name = lat_imp.name
             lat_imp.name = lat_imp.name + f'_p_{imperfection_level}_{hsh}'
@@ -116,28 +105,44 @@ def process_one(
             lat_dict['imperfection_level'] = imperfection_level
             lat_dict['imperfection_kind'] = IMP_KIND
             lat_dict['nodal_hash'] = hsh
+            lat_dict['fundamental_edge_radii'] = {}
 
+            r0 = np.sqrt(0.001)
+            r1 = np.sqrt(0.05)
+            r = np.linspace(r0,r1,NUM_RELDENS)
+            relative_densities = r**2
+            windowed_edge_radii = []
+            true_rel_den = []
+            for base_rd in relative_densities:
+                edge_radius = lat_imp.calculate_edge_radius(base_rd)
+                edge_radii = np.random.normal(edge_radius, 0.2*edge_radius, lat_imp.num_fundamental_edges)
+                edge_radii[edge_radii < 0.2*edge_radius] = 0.2*edge_radius
+                lat_imp.set_fundamental_edge_radii(edge_radii)
+                windowed_edge_radii.append(lat_imp.windowed_edge_radii)
+                rel_dens = lat_imp.calculate_relative_density()
+                true_rel_den.append(rel_dens)
 
+                lat_dict['fundamental_edge_radii'].update({rel_dens:lat_imp.fundamental_edge_radii})
+    
             job_name = f'{base_job_num:06d}_{loc_job_num:02d}'
 
             abaqus.write_abaqus_inp_normals(
-                lat_imp, 
-                strut_radii=np.array(strut_radii).reshape(1,-1),
+                lat_imp,
+                strut_radii=np.column_stack(windowed_edge_radii),
                 metadata={
                     'Job name':job_name,
                     'Lattice name':lat_imp.name,
                     'Base lattice':base_name,
                     'Date':datetime.datetime.now().strftime("%Y-%m-%d"), 
-                    'Relative densities': ', '.join([f'{rd:.5g}' for rd in relative_densities]),
-                    'Strut radii': ', '.join([f'{sr:.5g}' for sr in strut_radii]),
+                    'Relative densities': ', '.join([f'{rd:.7g}' for rd in true_rel_den]),
                     'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
-                    'Description':f'New dataset with B31 and 4 elements per strut',
+                    'Description':f'Fresh dataset, varying strut radii',
                     'Imperfection level':f'{imperfection_level}',
                     'Hash':hsh,
                 },
-                mesh_params=mesh_params,
-                element_type=element_type,
-                fname=os.path.join(dname, job_name+'.inp')
+                fname=os.path.join(dname, job_name+'.inp'),
+                element_type='B33',
+                mesh_params={'max_length':1, 'min_div':3}
             )
 
             outputs.append(lat_dict)
@@ -156,15 +161,13 @@ def main():
     print('Full catalogue: ', cat)
     # %
     # process catalogue in 10 chunks
+    # num_cat = 0
     num_cat = int(sys.argv[1])
     cat = cat[slice(num_cat, len(cat), 10)]
     print('Selected: ', cat)
     
-    MESH = {'max_length':1.0, 'min_div':4}
-    BEAM_TYPE = 'B31'
-    postfix = f'_{MESH["min_div"]}_{BEAM_TYPE}'
-    dname = f'E:/new_dset{postfix}'
-    new_cat_name = f'{dname}/m_cat_{num_cat:02d}{postfix}.lat'
+    dname = 'C:/temp/rad_dset_0'
+    new_cat_name = f'{dname}/m_cat_{num_cat:02d}.lat'
     new_cat_dict = dict()
 
     base_job_num = 0
@@ -175,7 +178,7 @@ def main():
         data['base_job_num'] = base_job_num
         base_job_num += 1
 
-    process_partial = partial(process_one, dname=os.path.join(dname, f'input_files_{num_cat:02d}'), mesh_params=MESH, element_type=BEAM_TYPE)
+    process_partial = partial(process_one, dname=os.path.join(dname, f'input_files_{num_cat:02d}'))
 
     with Pool(processes=2) as p:
         results = list(tqdm(p.imap(process_partial, input_dicts), total=len(input_dicts), smoothing=0.1))
@@ -192,7 +195,7 @@ def main():
     new_cat.to_file(new_cat_name)
 
     # use tarfile to compress the contents of the input_files folder
-    with tarfile.open(os.path.join(dname, f'input_files_{num_cat:02d}{postfix}.tar.gz'), 'w:gz') as archive:
+    with tarfile.open(os.path.join(dname, f'input_files_{num_cat:02d}.tar.gz'), 'w:gz') as archive:
         archive.add(os.path.join(dname, f'input_files_{num_cat:02d}'), arcname='input_files')
 
     # delete the input_files folder with all the input files

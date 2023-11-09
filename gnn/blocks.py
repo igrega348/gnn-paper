@@ -447,6 +447,7 @@ class TensorProductInteractionBlock(torch.nn.Module):
         reduce: str = 'sum',
         bias: bool = False,
         MLP_dim: int = 64,
+        MLP_layers: int = 3,
     ) -> None:
         super().__init__()
         self._node_feats_irreps = node_feats_irreps
@@ -479,20 +480,17 @@ class TensorProductInteractionBlock(torch.nn.Module):
 
         # Convolution weights
         input_dim = self.edge_feats_irreps.num_irreps
-        # self.conv_tp_weights = FullyConnectedNet(
-        #     [input_dim] + 3 * [64] + [self.conv_tp.weight_numel],
-        #     torch.nn.SiLU(),
-        # )
         # Try this initialization - includes bias term 
         layer = torch.nn.Linear(MLP_dim, self.conv_tp.weight_numel, bias=False)
         torch.nn.init.xavier_uniform_(layer.weight, gain=10)
         self.conv_tp_weights = torch.nn.Sequential(
             torch.nn.Linear(input_dim, MLP_dim),
-            torch.nn.SiLU(),
-            torch.nn.Linear(MLP_dim, MLP_dim),
-            torch.nn.SiLU(),
-            layer
+            torch.nn.SiLU()
         )
+        for _ in range(MLP_layers-2):
+            self.conv_tp_weights.append(torch.nn.Linear(MLP_dim, MLP_dim))
+            self.conv_tp_weights.append(torch.nn.SiLU())
+        self.conv_tp_weights.append(layer)
 
         # Linear
         irreps_mid = irreps_mid.simplify()
@@ -548,71 +546,6 @@ class TensorProductInteractionBlock(torch.nn.Module):
             message,
             None, # no skip connection
         )  # [n_nodes, channels, (lmax + 1)**2]
-
-class TensorProductResidualInteractionBlock(TensorProductInteractionBlock):
-    def __init__(
-        self,
-        node_feats_irreps: o3.Irreps,
-        edge_attrs_irreps: o3.Irreps,
-        edge_feats_irreps: o3.Irreps,
-        irreps_out: o3.Irreps,
-        sc_irreps_out: o3.Irreps,
-        agg_norm_const: Union[float, Dict[str, float]],
-        reduce: str = 'sum',
-        bias: bool = False,
-    ) -> None:
-        super().__init__(
-            node_feats_irreps,
-            edge_attrs_irreps,
-            edge_feats_irreps,
-            irreps_out,
-            agg_norm_const,
-            reduce,
-            bias,
-        )
-        self.sc_irreps_out = sc_irreps_out
-
-        # add skip connection # CHANGED
-        self.linear_skip = o3.Linear(
-            irreps_in=self._node_feats_irreps,
-            irreps_out=self.sc_irreps_out,
-            internal_weights=True,
-            shared_weights=True
-        )
-
-        # self.skip_tp = o3.FullyConnectedTensorProduct(
-        #     self._node_feats_irreps, '1x0e', self.sc_irreps_out
-        # )
-
-    def forward(
-        self,
-        node_feats: torch.Tensor, # [num_nodes, @node_feats_irreps]
-        edge_attrs: torch.Tensor, # [num_edges, @edge_attrs_irreps]
-        edge_feats: torch.Tensor, # [num_edges, @edge_feats_irreps]
-        edge_index: torch.Tensor, # [2, num_edges]
-        node_attrs: Optional[torch.Tensor] = None
-    ) -> torch.Tensor: 
-        sender, receiver = edge_index
-        num_nodes = node_feats.shape[0]
-
-        sc = self.linear_skip(node_feats) # skip connection # CHANGED
-        # sc = self.skip_tp(node_feats, node_attrs) # skip connection # CHANGED
-        node_feats = self.linear_up(node_feats)
-        tp_weights = self.conv_tp_weights(edge_feats)
-        mji = self.conv_tp(node_feats[sender], edge_attrs, tp_weights) 
-        if self.reduce=='pna':
-            message = self.pna(x=mji, index=receiver, dim_size=num_nodes)
-        else:
-            message = scatter(
-                src=mji, index=receiver, dim=0, dim_size=num_nodes, reduce=self.reduce
-            ) / self.agg_norm_const # [n_nodes, irreps] 
-        # TODO: try batchnorm
-        message = self.linear(message)
-        return (
-            self.reshape(message),
-            sc, 
-        )  # [n_nodes, channels, (lmax + 1)**2]
-    
 
 class EdgeUpdateBlock(torch.nn.Module):
     def __init__(
@@ -676,6 +609,7 @@ class GlobalSumHistoryPooling(torch.nn.Module):
         return graph_ft # [irreps,]
     
 class GlobalAttentionPooling(torch.nn.Module):
+    # this takes calculates a magnitude per node. Does not look at separate irreps separately
     def __init__(self, irreps_in: o3.Irreps) -> None:
         super().__init__()
         self.tens_prod = o3.TensorSquare(
@@ -713,13 +647,43 @@ class GlobalAttentionPooling(torch.nn.Module):
             reduce='sum'
         )
         return x
+    
+
+class IrrepBasedPooling(torch.nn.Module):
+    def __init__(self, irreps: o3.Irreps, aggr: str = 'norm_softmax') -> None:
+        super().__init__()
+        self.irreps = irreps
+        self.expanded_irreps = o3.Irreps([(1,(ir.l,ir.p)) for mul, ir in irreps for _ in range(mul)])
+        self.aggr = aggr
+        if 'norm' in self.aggr:
+            self.norm = o3.Norm(self.irreps, squared=False)
+
+    def forward(self, node_ft: Tensor, batch: Tensor, num_graphs: int) -> Tensor:
+        if 'norm' in self.aggr:
+            norms = self.norm(node_ft)
+            if 'softmax' in self.aggr:
+                y = torch.exp(norms)
+            elif 'softmin' in self.aggr:
+                y = torch.exp(-norms)
+        if 'norm' in self.aggr and 'soft' in self.aggr:
+            z = scatter(y, batch, dim=0, dim_size=num_graphs, reduce='sum') # [num_graphs, num_irreps]
+            y = y / z[batch] # [num_nodes, num_irreps]
+            i = 0
+            out = node_ft.new_zeros(node_ft.shape)
+            for k, ir in self.expanded_irreps:
+                out[:, i:i+ir.dim] = node_ft[:, i:i+ir.dim] * y[:,k].view(-1,1)
+                i += ir.dim
+            out = scatter(out, batch, dim=0, dim_size=num_graphs, reduce='sum') # [num_graphs, irreps]
+        return out
 
 
 # class GlobalLinearHistoryPooling(torch.nn.Module):
 #     def __init__(self, num_components: int) -> None:
 #         super().__init__()
 #         self.num_components = num_components
-#         self.register_parameter('weight', torch.nn.Parameter(torch.ones(1,num_components)))
+#         self.register_parameter('weight', torch.nn.Parameter(torch.ones(num_components)))
+    
+#     def 
 
 
 class GlobalElementwisePooling(torch.nn.Module):
@@ -762,6 +726,37 @@ class PNA(torch.nn.Module):
         out = self.post_pn(out)
 
         return out
+    
+class PNA_Irreps(torch.nn.Module):
+    def __init__(self, irreps: o3.Irreps) -> None:
+        super().__init__()
+
+        self.mean_agg = AGGREGATORS['mean']
+        self.max_agg = IrrepBasedPooling(irreps, 'norm_softmax')
+        self.min_agg = IrrepBasedPooling(irreps, 'norm_softmin')
+
+        temp_irreps = irreps*3
+        slices = temp_irreps.slices()
+        temp_irreps, _, inv = temp_irreps.sort()
+        temp_irreps = temp_irreps.simplify()
+        self.sorting_slices = [slices[i] for i in inv]
+
+        self.linear = o3.Linear(temp_irreps, irreps, 
+            internal_weights=True,
+            shared_weights=True,
+            biases=True
+        )
+
+    def forward(self, x: torch.Tensor, index: torch.Tensor, dim_size: int) -> torch.Tensor:
+        mean = self.mean_agg(x, index, dim_size)
+        max = self.max_agg(x, index, dim_size)
+        min = self.min_agg(x, index, dim_size)
+
+        out = torch.cat([mean, max, min], dim=1)
+        out = torch.cat([out[:, s] for s in self.sorting_slices], dim=1)
+        out = self.linear(out)
+        return out
+
 
 class PNASimple(torch.nn.Module):
     def __init__(self, irreps_in: o3.Irreps, avg_deg: Dict[str, float]) -> None:
@@ -859,7 +854,9 @@ class MACELayer(torch.nn.Module):
         interaction_agg_norm_const: Union[float, Dict],
         interaction_reduction: str,
         interaction_bias: bool,
-        product_correlation: int, 
+        product_correlation: int,
+        MLP_dim: int = 64,
+        MLP_layers: int = 3,
     ) -> None:
         super().__init__()
         
@@ -871,7 +868,9 @@ class MACELayer(torch.nn.Module):
             irreps_out=interaction_irreps,
             agg_norm_const=interaction_agg_norm_const,
             reduce=interaction_reduction,
-            bias=interaction_bias
+            bias=interaction_bias,
+            MLP_dim=MLP_dim,
+            MLP_layers=MLP_layers
         )
 
         self.product = EquivariantProductBlock(
