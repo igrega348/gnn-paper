@@ -37,3 +37,5 @@ make_imperfections_debug.py
 make_octet_rot.py
 tiny_dset*
 try*
+
+abaqus.rpy*

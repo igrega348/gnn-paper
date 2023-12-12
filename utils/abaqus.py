@@ -813,3 +813,24 @@ def run_abq_sim(jobnames: Iterable, wdir: str = './abq_working_dir') -> List[Dic
         outputs.append(get_results_from_json(fname))
 
     return outputs
+
+def post_process_odbs(jobnames: Iterable, wdir: str = './abq_working_dir') -> List[Dict]:
+    ABQ_ANALYSE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'abq_analyse_parallel.py')
+
+    wdir = os.path.abspath(wdir)
+
+    print('Working directory: ', wdir)
+    print('Running jobs... ', jobnames)
+    completed = subprocess.run(f'abaqus cae noGUI="{ABQ_ANALYSE}" -- abq_wdir "{wdir}"', shell=True, capture_output=True)
+    if completed.returncode!=0:
+        print(completed.stdout.decode('utf-8'))
+        print(completed.stderr.decode('utf-8'))
+    print('CAE post-processing task finished')
+
+    # post-process jsons
+    outputs = []
+    for jobname in jobnames:
+        fname = os.path.join(wdir, f'{jobname}.json')
+        outputs.append(get_results_from_json(fname))
+
+    return outputs

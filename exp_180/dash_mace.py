@@ -1,7 +1,7 @@
 # %%
 import os
 import sys
-sys.path.append(os.path.abspath('../../'))
+sys.path.append(os.path.abspath('../'))
 from argparse import Namespace
 import json
 from pathlib import Path

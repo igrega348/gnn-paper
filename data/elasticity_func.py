@@ -1,7 +1,7 @@
 # %%
 import numpy as np
 import torch
-
+from typing import Union
 # %% Enforce various symmetries on compliance tensors
 def enforce_trigonal(S0 : np.ndarray) -> np.ndarray:
     S = S0.copy()
@@ -137,7 +137,7 @@ def isotropic_S(E=1, nu=0.3) -> np.ndarray:
 def rotate_4th_order(T : np.ndarray, g : np.ndarray):
     out = np.einsum('ia, jb, kc, ld, abcd->ijkl', g,g,g,g,T)
     return out
-def rotate_2nd_order_C(C : np.ndarray, R : np.ndarray):
+def rotate_Voigt_stiffness(C : np.ndarray, R : np.ndarray):
     K1 = R**2
     K2 = R[:,[1,2,0]]*R[:,[2,0,1]]
     K3 = R[[1,2,0],:]*R[[2,0,1],:]
@@ -147,7 +147,7 @@ def rotate_2nd_order_C(C : np.ndarray, R : np.ndarray):
         [K3, K4]
     ])
     return K @ C @ (K.T)
-def rotate_2nd_order_S(S : np.ndarray, R : np.ndarray):
+def rotate_Voigt_compliance(S : np.ndarray, R : np.ndarray):
     K1 = R**2
     K2 = R[:,[1,2,0]]*R[:,[2,0,1]]
     K3 = R[[1,2,0],:]*R[[2,0,1],:]
@@ -316,6 +316,25 @@ def stiffness_Voigt_to_4th_order(C: np.ndarray):
         return C4
     else:
         return C4[0,:,:,:,:]
+    
+def stiffness_Voigt_to_Mandel(C: np.ndarray) -> np.ndarray:
+    s2 = np.sqrt(2)
+    mask = np.array([[1,1,1,s2,s2,s2],
+                     [1,1,1,s2,s2,s2],
+                     [1,1,1,s2,s2,s2],
+                     [s2,s2,s2,2,2,2],
+                     [s2,s2,s2,2,2,2],
+                     [s2,s2,s2,2,2,2]]).reshape((1,6,6))
+    if C.ndim == 2:
+        _C = C.reshape((1,6,6))
+    else:
+        _C = C
+    C_2 = C * mask
+
+    if C.ndim == 2:
+        return C_2[0]
+    else:
+        return C_2
 # %% Young's modulus in a specific direction
 def Youngs_modulus(S : np.ndarray, d : np.ndarray):
     assert S.shape==(3,3,3,3)
@@ -342,21 +361,8 @@ def scaling_law_fit(youngs_moduli: dict):
     constants = 10**(fit[1,:])
 
     return exponents, constants
-# %%  TORCH FUNCTIONS ###
-#########################
-def stiffness_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
-    s2 = np.sqrt(2)
-    mask = torch.tensor([[1,1,1,s2,s2,s2],
-                         [1,1,1,s2,s2,s2],
-                         [1,1,1,s2,s2,s2],
-                         [s2,s2,s2,2,2,2],
-                         [s2,s2,s2,2,2,2],
-                         [s2,s2,s2,2,2,2]], device=_C.device, dtype=_C.dtype)
-    if _C.dim() == 4:
-        C = _C.unsqueeze(0)
-    else:
-        C = _C
-    C_2 = _C.new_zeros((C.size(0),6,6))
+# %%  FUNCTIONS SHARED BETWEEN NUMPY AND TORCH ###
+def _cart_4_tensor_to_Mandel_inplace(C4: Union[np.ndarray, torch.Tensor], C_2: Union[np.ndarray, torch.Tensor], mask: Union[np.ndarray, torch.Tensor]):
     for i in range(6):
         if i<3:
             a = b = i
@@ -375,22 +381,12 @@ def stiffness_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
                 c = 0; d = 2
             else:
                 c = 0; d = 1
-            Cij = C[:,a,b,c,d] 
-            C_2[:,i,j] = Cij 
-            C_2[:,j,i] = Cij
-    C_2 = C_2 * mask.view(1,6,6)
-    if _C.dim() == 4:
-        C_2.squeeze_(0)
-    return C_2
+            Cij = C4[...,a,b,c,d] 
+            C_2[...,i,j] = Cij 
+            C_2[...,j,i] = Cij
+    C_2 = C_2 * mask
 
-def stiffness_Mandel_to_cart_4(C: torch.Tensor) -> torch.Tensor:
-    # convert C_ij to C_abcd
-    if C.ndim==3:
-        _C = C
-    elif C.ndim==2:
-        _C = C.unsqueeze(0)
-    C4 = torch.zeros((_C.shape[0], 3,3,3,3), device=C.device, dtype=C.dtype)
-    # 1-based continuum mechanics notation
+def _Mandel_to_cart_4_inplace(C: Union[np.ndarray, torch.Tensor], C4: Union[np.ndarray, torch.Tensor]):
     for i in range(1,7):
         if i<=3:
             a = b = i
@@ -411,20 +407,57 @@ def stiffness_Mandel_to_cart_4(C: torch.Tensor) -> torch.Tensor:
             elif j==6:
                 c = 1; d = 2
 
-            val = _C[:, i-1, j-1]
+            val = C[..., i-1, j-1]
             if i>3:
                 val = val/np.sqrt(2)
             if j>3:
                 val = val/np.sqrt(2)
 
-            C4[:, a-1, b-1, c-1, d-1] = val
-            C4[:, b-1, a-1, c-1, d-1] = val
-            C4[:, a-1, b-1, d-1, c-1] = val
-            C4[:, b-1, a-1, d-1, c-1] = val
-            C4[:, c-1, d-1, a-1, b-1] = val
-            C4[:, c-1, d-1, b-1, a-1] = val
-            C4[:, d-1, c-1, a-1, b-1] = val
-            C4[:, d-1, c-1, b-1, a-1] = val
+            C4[..., a-1, b-1, c-1, d-1] = val
+            C4[..., b-1, a-1, c-1, d-1] = val
+            C4[..., a-1, b-1, d-1, c-1] = val
+            C4[..., c-1, d-1, a-1, b-1] = val
+            C4[..., b-1, a-1, d-1, c-1] = val
+            C4[..., c-1, d-1, b-1, a-1] = val
+            C4[..., d-1, c-1, a-1, b-1] = val
+            C4[..., d-1, c-1, b-1, a-1] = val
+# %%  TORCH FUNCTIONS ###
+#########################
+def stiffness_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
+    return tensor_cart_4_to_Mandel(_C)
+def compliance_cart_4_to_Mandel(_S: torch.Tensor) -> torch.Tensor:
+    return tensor_cart_4_to_Mandel(_S)
+def stiffness_Mandel_to_cart_4(_C: torch.Tensor) -> torch.Tensor:
+    return Mandel_to_cart_4_tensor(_C)
+def compliance_Mandel_to_cart_4(_S: torch.Tensor) -> torch.Tensor:
+    return Mandel_to_cart_4_tensor(_S)
+
+def tensor_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
+    s2 = np.sqrt(2)
+    mask = torch.tensor([[1,1,1,s2,s2,s2],
+                         [1,1,1,s2,s2,s2],
+                         [1,1,1,s2,s2,s2],
+                         [s2,s2,s2,2,2,2],
+                         [s2,s2,s2,2,2,2],
+                         [s2,s2,s2,2,2,2]], device=_C.device, dtype=_C.dtype)
+    if _C.dim() == 4:
+        C = _C.unsqueeze(0)
+    else:
+        C = _C
+    C_2 = _C.new_zeros((C.size(0),6,6))
+    _cart_4_tensor_to_Mandel_inplace(C, C_2, mask)
+    if _C.dim() == 4:
+        C_2.squeeze_(0)
+    return C_2
+
+def Mandel_to_cart_4_tensor(C: torch.Tensor) -> torch.Tensor:
+    # convert C_ij to C_abcd
+    if C.ndim==3:
+        _C = C
+    elif C.ndim==2:
+        _C = C.unsqueeze(0)
+    C4 = torch.zeros((_C.shape[0], 3,3,3,3), device=C.device, dtype=C.dtype)
+    _Mandel_to_cart_4_inplace(_C, C4)
 
     if C.ndim==2:
         C4.squeeze_(0)

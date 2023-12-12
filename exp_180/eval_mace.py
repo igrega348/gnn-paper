@@ -28,7 +28,6 @@ from train_mace import LightningWrappedModel, RotateLat, load_datasets, obtain_e
 # %%
 
 def main():
-    df = pd.read_csv('./mace-hparams-180.csv', index_col=0)
 
     num_hp_trial = int(os.environ['NUM_HP_TRIAL'])
     params_path = Path(f'./results/params-{num_hp_trial}.json')

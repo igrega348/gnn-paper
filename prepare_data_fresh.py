@@ -80,7 +80,7 @@ def process_one(
         if imperfection_level==0.0:
             num_imperf = 1
         else:
-            num_imperf = 10
+            num_imperf = 5 # only run 5 imperfections now
 
         for i_imperf in range(num_imperf):
 
@@ -101,10 +101,11 @@ def process_one(
                 print(f'Lattice {lat.name} failed')
                 break
 
-            r0 = np.sqrt(0.001)
-            r1 = np.sqrt(0.05)
-            r = np.linspace(r0,r1,NUM_RELDENS)
-            relative_densities = r**2
+            # r0 = np.sqrt(0.001)
+            # r1 = np.sqrt(0.05)
+            # r = np.linspace(r0,r1,NUM_RELDENS)
+            # relative_densities = 
+            relative_densities = [0.001, 0.003, 0.01]
             strut_radii = [lat_imp.calculate_edge_radius(rel_dens) for rel_dens in relative_densities]
 
             hsh = hash(lat_imp.reduced_node_coordinates.tobytes())
@@ -163,7 +164,7 @@ def main():
     MESH = {'max_length':1.0, 'min_div':4}
     BEAM_TYPE = 'B31'
     postfix = f'_{MESH["min_div"]}_{BEAM_TYPE}'
-    dname = f'E:/new_dset{postfix}'
+    dname = f'E:/dset{postfix}'
     new_cat_name = f'{dname}/m_cat_{num_cat:02d}{postfix}.lat'
     new_cat_dict = dict()
 

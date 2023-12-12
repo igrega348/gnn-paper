@@ -401,6 +401,7 @@ def plotly_stiffness_surf(
     C: np.ndarray, 
     title: str='',
     fig=None, subplot: Optional[dict] = None,
+    clim: Optional[Tuple[float, float]] = None,
     ):
     assert C.shape==(3,3,3,3)
         
@@ -439,8 +440,9 @@ def plotly_stiffness_surf(
     else:
         subplot_args = {}
 
+    clim = clim or (np.min(R), np.max(R))
     fig.add_trace(
-        go.Surface(x=X, y=Y, z=Z, surfacecolor=R),
+        go.Surface(x=X, y=Y, z=Z, surfacecolor=R, cmin=clim[0], cmax=clim[1]),
         **subplot_args
     )
 

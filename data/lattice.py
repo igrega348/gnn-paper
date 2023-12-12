@@ -111,11 +111,11 @@ class Lattice:
         if isinstance(nodal_positions, Sequence):
             nodal_positions = np.array(nodal_positions)
         if isinstance(edge_adjacency, Sequence):
-            edge_adjacency = np.array(edge_adjacency)
+            edge_adjacency = np.array(edge_adjacency, dtype=int)
         if isinstance(edge_coordinates, Sequence):
             edge_coordinates = np.array(edge_coordinates)
         if isinstance(fundamental_edge_adjacency, Sequence):
-            fundamental_edge_adjacency = np.array(fundamental_edge_adjacency)
+            fundamental_edge_adjacency = np.array(fundamental_edge_adjacency, dtype=int)
         if isinstance(fundamental_tesselation_vecs, Sequence):
             fundamental_tesselation_vecs = np.array(fundamental_tesselation_vecs)
         
