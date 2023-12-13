@@ -276,7 +276,7 @@ def stiffness_4th_order_to_Voigt(C: np.ndarray) -> np.ndarray:
         return C_2[0,:,:]
 # %%
 def stiffness_Voigt_to_4th_order(C: np.ndarray):
-    # convert C_ij to C_abcd
+    # convert C_ij to C_abcd 
     if C.ndim==3:
         _C = C
     elif C.ndim==2:
