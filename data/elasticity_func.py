@@ -319,22 +319,58 @@ def stiffness_Voigt_to_4th_order(C: np.ndarray):
     
 def stiffness_Voigt_to_Mandel(C: np.ndarray) -> np.ndarray:
     s2 = np.sqrt(2)
-    mask = np.array([[1,1,1,s2,s2,s2],
-                     [1,1,1,s2,s2,s2],
-                     [1,1,1,s2,s2,s2],
-                     [s2,s2,s2,2,2,2],
-                     [s2,s2,s2,2,2,2],
-                     [s2,s2,s2,2,2,2]]).reshape((1,6,6))
-    if C.ndim == 2:
-        _C = C.reshape((1,6,6))
-    else:
-        _C = C
-    C_2 = C * mask
+    mask = np.block([[np.ones((3,3)), s2*np.ones((3,3))],
+                    [s2*np.ones((3,3)), 2*np.ones((3,3))]])    
+    C_2 = C[...,:,:] * mask
+    return C_2
 
-    if C.ndim == 2:
-        return C_2[0]
+def stiffness_Mandel_to_Voigt(C: np.ndarray) -> np.ndarray:
+    s2 = np.sqrt(2)
+    mask = np.block([[np.ones((3,3)), s2*np.ones((3,3))],
+                     [s2*np.ones((3,3)), 2*np.ones((3,3))]])
+    C_2 = C[...,:,:] / mask
+    return C_2
+
+def compliance_Voigt_to_Mandel(S: np.ndarray) -> np.ndarray:
+    s2 = np.sqrt(2)
+    mask = np.block([[np.ones((3,3)), s2*np.ones((3,3))],
+                    [s2*np.ones((3,3)), 2*np.ones((3,3))]])    
+    S_2 = S[...,:,:] / mask
+    return S_2
+
+def compliance_Mandel_to_Voigt(S: np.ndarray) -> np.ndarray:
+    s2 = np.sqrt(2)
+    mask = np.block([[np.ones((3,3)), s2*np.ones((3,3))],
+                     [s2*np.ones((3,3)), 2*np.ones((3,3))]])
+    S_2 = S[...,:,:] * mask
+    return S_2
+    
+def numpy_cart_4_to_Mandel(_C: np.ndarray) -> np.ndarray:
+    s2 = np.sqrt(2)
+    mask = np.block([[np.ones((3,3)), s2*np.ones((3,3))],
+                     [s2*np.ones((3,3)), 2*np.ones((3,3))]])
+    if _C.ndim == 4:
+        C = _C[None,...] # add batch dimension
     else:
-        return C_2
+        C = _C
+    C_2 = np.zeros((C.shape[0],6,6))
+    _cart_4_tensor_to_Mandel_inplace(C, C_2, mask)
+    if _C.ndim == 4:
+        C_2 = C_2[0, ...] # remove batch dimension
+    return C_2
+
+def numpy_Mandel_to_cart_4(C: np.ndarray) -> np.ndarray:
+    # convert C_ij to C_abcd
+    if C.ndim==3:
+        _C = C
+    elif C.ndim==2:
+        _C = C[None,...] # add batch dimension
+    C4 = np.zeros((_C.shape[0], 3,3,3,3))
+    _Mandel_to_cart_4_inplace(_C, C4)
+
+    if C.ndim==2:
+        C4 = C4[0, ...] # remove batch dimension
+    return C4
 # %% Young's modulus in a specific direction
 def Youngs_modulus(S : np.ndarray, d : np.ndarray):
     assert S.shape==(3,3,3,3)
@@ -384,7 +420,7 @@ def _cart_4_tensor_to_Mandel_inplace(C4: Union[np.ndarray, torch.Tensor], C_2: U
             Cij = C4[...,a,b,c,d] 
             C_2[...,i,j] = Cij 
             C_2[...,j,i] = Cij
-    C_2 = C_2 * mask
+    C_2[...,:,:] *= mask
 
 def _Mandel_to_cart_4_inplace(C: Union[np.ndarray, torch.Tensor], C4: Union[np.ndarray, torch.Tensor]):
     for i in range(1,7):

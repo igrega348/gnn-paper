@@ -80,7 +80,7 @@ def process_one(
         if imperfection_level==0.0:
             num_imperf = 1
         else:
-            num_imperf = 5 # only run 5 imperfections now
+            num_imperf = 10
 
         for i_imperf in range(num_imperf):
 
@@ -104,7 +104,6 @@ def process_one(
             # r0 = np.sqrt(0.001)
             # r1 = np.sqrt(0.05)
             # r = np.linspace(r0,r1,NUM_RELDENS)
-            # relative_densities = 
             relative_densities = [0.001, 0.003, 0.01]
             strut_radii = [lat_imp.calculate_edge_radius(rel_dens) for rel_dens in relative_densities]
 
@@ -156,9 +155,9 @@ def main():
     cat = Catalogue.from_file('./Unit_Cell_Catalog.txt', 1)
     print('Full catalogue: ', cat)
     # %
-    # process catalogue in 10 chunks
+    # process catalogue in 50 chunks
     num_cat = int(sys.argv[1])
-    cat = cat[slice(num_cat, len(cat), 10)]
+    cat = cat[slice(num_cat, len(cat), 50)]
     print('Selected: ', cat)
     
     MESH = {'max_length':1.0, 'min_div':4}
@@ -194,7 +193,7 @@ def main():
 
     # use tarfile to compress the contents of the input_files folder
     with tarfile.open(os.path.join(dname, f'input_files_{num_cat:02d}{postfix}.tar.gz'), 'w:gz') as archive:
-        archive.add(os.path.join(dname, f'input_files_{num_cat:02d}'), arcname='input_files')
+        archive.add(os.path.join(dname, f'input_files_{num_cat:02d}'), arcname=f'input_files_{num_cat:02d}')
 
     # delete the input_files folder with all the input files
     shutil.rmtree(os.path.join(dname, f'input_files_{num_cat:02d}'))

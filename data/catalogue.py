@@ -171,7 +171,9 @@ class Catalogue:
                 - `nodal_positions` or `reduced_node_coordinates`
             They can contain also:
                 - `lattice_constants`
-                - `compliance_tensors`
+                - `compliance_tensors`   # assuming Voigt notation, legacy support
+                - `compliance_tensors_V` # Voigt notation
+                - `compliance_tensors_M` # Mandel notation
                 - `fundamental_edge_adjacency`
                 - `fundamental_tesselation_vecs`
                 - `fundamental_edge_radii`
@@ -216,10 +218,20 @@ class Catalogue:
                 lines.append(line)
                 lines.append('')
 
-            if 'compliance_tensors' in lat_dict:
-                compliance_tensors = lat_dict['compliance_tensors']
+            if (('compliance_tensors_M' in lat_dict) 
+            or ('compliance_tensors_V' in lat_dict) 
+            or ('compliance_tensors' in lat_dict)):
+                if 'compliance_tensors_M' in lat_dict:
+                    compliance_tensors = lat_dict['compliance_tensors_M']
+                    compl_format = 'Mandel'
+                elif 'compliance_tensors_V' in lat_dict:
+                    compliance_tensors = lat_dict['compliance_tensors_V']
+                    compl_format = 'Voigt'
+                else:
+                    compliance_tensors = lat_dict['compliance_tensors']
+                    compl_format = 'Voigt'
                 lines.append('')
-                lines.append('Compliance tensors start (flattened upper triangular)')
+                lines.append(f'Compliance tensors ({compl_format}) start (flattened upper triangular)')
                 for rel_dens in sorted(compliance_tensors.keys()):
                     lines.append(f'-> at relative density {rel_dens}:')
                     S = compliance_tensors[rel_dens]
@@ -228,7 +240,7 @@ class Catalogue:
                     nums = [f'{x:.5g}' for x in nums]
                     line = ','.join(nums)
                     lines.append(line)
-                lines.append('Compliance tensors end')
+                lines.append(f'Compliance tensors ({compl_format}) end')
                 lines.append('')
 
             
@@ -301,11 +313,12 @@ class Catalogue:
                 - `name`
                 - `lattice constants`: [a,b,c,alpha,beta,gamma]
                 - `average connectivity`
-                - `compliance_tensors`
+                - `compliance_tensors_M`: dictionary {rel_dens: compliance tensor}
+                - `compliance_tensors_V`: dictionary {rel_dens: compliance tensor}
                 - `nodal_positions`: nested list of shape (num_nodes, 3)
                 - `edge_adjacency`: nested list of shape (num_edges, 2) (0-indexed)
                 - `fundamental_edge_adjacency`: nested list of shape (num_fundamental_edges, 2) (0-indexed)
-                - `fundamental_tesselation_vecs`: nested list of shape (num_fundamental_edges, 6) (0-indexed)
+                - `fundamental_tesselation_vecs`: nested list of shape (num_fundamental_edges, 6) or (num_fundamental_edges, 3) (0-indexed)
                 - `fundamental_edge_radii`: dictionary {rel_dens: list of edge radii}
 
             The dictionary can be unpacked in the creation of a `Lattice` object
@@ -349,10 +362,15 @@ class Catalogue:
             elif 'Nodal hash' in line:
                 nodal_hash = line.split(':')[1].lstrip()
                 uc_dict['nodal_hash'] = nodal_hash
-            elif 'Compliance tensors start' in line:
-                compl_start = i_line
-            elif 'Compliance tensors end' in line:
-                compl_end = i_line
+            elif 'Compliance tensors' in line:
+                if 'start' in line:
+                    compl_start = i_line
+                elif 'end' in line:
+                    compl_end = i_line
+                if 'Mandel' in line:
+                    compl_format = 'M'
+                elif 'Voigt' in line:
+                    compl_format = 'V'
             elif 'Nodal positions' in line:
                 nod_pos_start = i_line
             elif 'Bar connectivities' in line:
@@ -429,7 +447,7 @@ class Catalogue:
                     S[np.triu_indices(6)] = nums
                     S[np.triu_indices(6)[::-1]] = nums
                     compliance_tensors[rel_dens] = S
-            uc_dict['compliance_tensors'] = compliance_tensors
+            uc_dict[f'compliance_tensors_{compl_format}'] = compliance_tensors
 
         if isinstance(fund_er_start, int):
             assert isinstance(fund_er_end, int)

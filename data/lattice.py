@@ -7,6 +7,7 @@ import numpy.typing as npt
 from math import ceil
 from scipy.spatial import transform
 logging.getLogger('data.lattice').addHandler(logging.NullHandler())
+from .elasticity_func import compliance_Voigt_to_Mandel
 
 
 class Lattice:
@@ -28,7 +29,7 @@ class Lattice:
     
     # elasticity properties
     S_tens: npt.NDArray[np.float_]
-    compliance_tensors: dict
+    compliance_tensors_M: dict # Mandel notation
     Youngs_moduli: dict
     scaling_exponents: dict
     # other properties
@@ -123,7 +124,19 @@ class Lattice:
             self.lattice_constants = np.array(lattice_constants, dtype=float)
         
         if 'compliance_tensors' in kwargs:
-            self.compliance_tensors = kwargs['compliance_tensors']
+            import warnings
+            warnings.warn(
+                "Assuming Voigt notation for compliance tensors input."
+            )
+            self.compliance_tensors_M = {
+                key:compliance_Voigt_to_Mandel(value) for key, value in kwargs['compliance_tensors'].items()
+            }
+        if 'compliance_tensors_V' in kwargs:
+            self.compliance_tensors_M = {
+                key:compliance_Voigt_to_Mandel(value) for key, value in kwargs['compliance_tensors'].items()
+            }
+        if 'compliance_tensors_M' in kwargs:
+            self.compliance_tensors_M = kwargs['compliance_tensors_M']
 
         if 'Youngs_moduli' in kwargs:
             self.Youngs_moduli = kwargs['Youngs_moduli']
@@ -158,10 +171,14 @@ class Lattice:
             fundamental_tesselation_vecs = np.atleast_2d(fundamental_tesselation_vecs)
             assert nodal_positions.shape[1]==3
             assert fundamental_edge_adjacency.shape[1]==2
-            assert fundamental_tesselation_vecs.shape[1]==6
+            assert fundamental_tesselation_vecs.shape[1] in [3,6]
             edge_coords = self._node_adj_to_ec(
                 nodal_positions, fundamental_edge_adjacency
             )
+            if fundamental_tesselation_vecs.shape[1]==3:
+                fundamental_tesselation_vecs = np.hstack(
+                    (np.zeros((fundamental_tesselation_vecs.shape[0],3)), fundamental_tesselation_vecs)
+                )
             edge_coords += fundamental_tesselation_vecs
             self.update_representations(edge_coords=edge_coords)
         elif isinstance(edge_coordinates, Iterable):
@@ -1771,7 +1788,7 @@ class Lattice:
     def to_dict(self, fundamental: bool = True) -> dict:
         """Obtain a dictionary with the reduced representation."""
         d = dict()
-        attrs_to_copy = self.ATTRS_TO_COPY + ['compliance_tensors','stiffness_tensors']
+        attrs_to_copy = self.ATTRS_TO_COPY + ['compliance_tensors_M','stiffness_tensors']
         for attr in attrs_to_copy:
             if hasattr(self, attr):
                 d[attr] = getattr(self, attr)
@@ -1781,7 +1798,9 @@ class Lattice:
         if hasattr(self, 'fundamental_edge_adjacency') and fundamental:
             d['fundamental_edge_adjacency'] = self.fundamental_edge_adjacency
         if hasattr(self, 'fundamental_tesselation_vecs') and fundamental:
-            d['fundamental_tesselation_vecs'] = self.fundamental_tesselation_vecs
+            assert self.fundamental_tesselation_vecs[:,:3].sum()==0
+            # for storage efficiency, we only save the last 3 columns
+            d['fundamental_tesselation_vecs'] = self.fundamental_tesselation_vecs[:,3:]
         return d
 
     @staticmethod

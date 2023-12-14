@@ -31,8 +31,8 @@ def create_dict(names: list) -> dict:
         d[lat_name].setdefault(params[0], dict())
         d[lat_name][params[0]][params[1]] = 0
     return d
-# function that checks if the bottom level of the dictionary is all 10
-# return the list of top level keys that are not all 10
+# function that checks if the bottom level of the dictionary is all required_val
+# return the list of top level keys that are not all required_val
 def check_dict(d: dict, required_val: int = 10) -> list:
     failed = []
     for lat_name, lat_dict in d.items():
@@ -42,7 +42,7 @@ def check_dict(d: dict, required_val: int = 10) -> list:
     return failed
 # %%
 def main(cat_num: int, post_script: str = ''):
-    dname = 'C:/temp/meshing_comparison/'
+    dname = 'E:/dset_4_B31'
     input_cat_fn = os.path.join(dname,f'm_cat_{cat_num:02d}{post_script}.lat')
     print('Loading catalogue from')
     print('\t', input_cat_fn)
@@ -51,7 +51,7 @@ def main(cat_num: int, post_script: str = ''):
     input_dict = create_dict(cat.names)
 
 
-    abq_archive_fn = os.path.join(dname, f'processed_data_{cat_num}{post_script}.tar.gz')
+    abq_archive_fn = os.path.join(dname, f'output_{cat_num:02d}.tar.gz')
 
     updated_cat_dict = dict()
     failed = []
@@ -86,27 +86,35 @@ def main(cat_num: int, post_script: str = ''):
                 if not check_data(data):
                     failed.append(name)
                     continue
-                # update input_dict
-                input_dict[lat_name][imp_level][nodal_hash] += 1
+                
 
-                S = abaqus.calculate_compliance_Voigt(data, uc_volume)
-                # symmetrise
-                S = 0.5*(S+S.T)
+                S_m = abaqus.calculate_compliance_Mandel(data, uc_volume)
+                if not np.all((S_m - S_m.T)/S_m.max() < 1e-3):
+                    print(f'Compliance tensor is not symmetric for {name}' \
+                    f' \n {np.around(S_m,0)}')
+                    failed.append(name)
+                    continue
+                # symmetrise to machine precision
+                S = 0.5*(S_m+S_m.T)
 
                 compliance_tensors[rel_dens] = S
+                
+                # update input_dict if did not fail
+                input_dict[lat_name][imp_level][nodal_hash] += 1
 
             lat_dict = cat[sim_dict['Lattice name']]
-            lat_dict['compliance_tensors'] = compliance_tensors
+            # only save the last 3 columns
+            assert len(lat_dict['fundamental_tesselation_vecs'][0]) == 6
+            lat_dict['fundamental_tesselation_vecs'] = [x[3:] for x in lat_dict['fundamental_tesselation_vecs']]
+            #
+            lat_dict['compliance_tensors_M'] = compliance_tensors
             updated_cat_dict[name] = lat_dict
         
-    failed_base = check_dict(input_dict)
+    failed_base = check_dict(input_dict, required_val=3)
     print(f'Base lattices that are kept: {len(input_dict)-len(failed_base)}')
     for name in cat.names:
         if name.split('_p_')[0] in failed_base:
             updated_cat_dict.pop(name, None)
-    # print(set(failed))
-    # for name in failed:
-    #     updated_cat_dict.pop(name, None)
 
     cat = Catalogue.from_dict(updated_cat_dict)
     print(cat)
@@ -114,9 +122,4 @@ def main(cat_num: int, post_script: str = ''):
 # %%
 if __name__=="__main__":
     cat_num = int(sys.argv[1])
-    for beam_type in ['B31','B33']:
-        for tess in [1,3,5]:
-            main(cat_num, f'_{tess}_{beam_type}')
-            main(cat_num, f'_{tess}_{beam_type}_2')
-    # main(cat_num)
-# %%
+    main(cat_num, f'_4_B31')
