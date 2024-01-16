@@ -42,7 +42,7 @@ def check_dict(d: dict, required_val: int = 10) -> list:
     return failed
 # %%
 def main(cat_num: int, post_script: str = ''):
-    dname = 'E:/dset_4_B31'
+    dname = 'E:/rad_dset_1'
     input_cat_fn = os.path.join(dname,f'm_cat_{cat_num:02d}{post_script}.lat')
     print('Loading catalogue from')
     print('\t', input_cat_fn)
@@ -90,8 +90,8 @@ def main(cat_num: int, post_script: str = ''):
 
                 S_m = abaqus.calculate_compliance_Mandel(data, uc_volume)
                 if not np.all((S_m - S_m.T)/S_m.max() < 1e-3):
-                    print(f'Compliance tensor is not symmetric for {name}' \
-                    f' \n {np.around(S_m,0)}')
+                    print(f'\nCompliance tensor is not symmetric for {name}' \
+                    f' \n{np.around(S_m,0)}')
                     failed.append(name)
                     continue
                 # symmetrise to machine precision
@@ -104,8 +104,8 @@ def main(cat_num: int, post_script: str = ''):
 
             lat_dict = cat[sim_dict['Lattice name']]
             # only save the last 3 columns
-            assert len(lat_dict['fundamental_tesselation_vecs'][0]) == 6
-            lat_dict['fundamental_tesselation_vecs'] = [x[3:] for x in lat_dict['fundamental_tesselation_vecs']]
+            # assert len(lat_dict['fundamental_tesselation_vecs'][0]) in 6
+            # lat_dict['fundamental_tesselation_vecs'] = [x[3:] for x in lat_dict['fundamental_tesselation_vecs']]
             #
             lat_dict['compliance_tensors_M'] = compliance_tensors
             updated_cat_dict[name] = lat_dict
@@ -122,4 +122,4 @@ def main(cat_num: int, post_script: str = ''):
 # %%
 if __name__=="__main__":
     cat_num = int(sys.argv[1])
-    main(cat_num, f'_4_B31')
+    main(cat_num, f'_rad')

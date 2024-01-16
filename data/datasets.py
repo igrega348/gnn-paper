@@ -233,12 +233,27 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
         fundamental_edge_adjacency = np.atleast_2d(lat_data['fundamental_edge_adjacency'])
         fundamental_tess_vecs = np.atleast_2d(lat_data['fundamental_tesselation_vecs'])
         lattice_constants = np.array(lat_data['lattice_constants'])
-        compliance_tensors = lat_data['compliance_tensors']
+        if 'compliance_tensors_M' in lat_data:
+            compliance_tensors = lat_data['compliance_tensors_M']
+            compliance_tensors_M = compliance_tensors
+        elif 'compliance_tensors_V' in lat_data:
+            compliance_tensors = lat_data['compliance_tensors_V']
+            # Convert from Voigt to Mandel
+            try:
+                compliance_tensors_M = {k:elasticity_func.compliance_Voigt_to_Mandel(v) for k,v in compliance_tensors.items()}
+            except TypeError:
+                logging.warning(f'Failed to convert compliance tensors for {name}')
+                compliance_tensors_M = {k:None for k,v in compliance_tensors.items()}
         
         uq_inds = np.unique(fundamental_edge_adjacency)
         nodal_positions = nodal_positions[uq_inds]
         edge_adjacency = np.searchsorted(uq_inds, fundamental_edge_adjacency)
-        tessellation_vecs = fundamental_tess_vecs[:, 3:] - fundamental_tess_vecs[:, :3]
+        if fundamental_tess_vecs.shape[1]==6:
+            tessellation_vecs = fundamental_tess_vecs[:, 3:] - fundamental_tess_vecs[:, :3]
+        elif fundamental_tess_vecs.shape[1]==3:
+            tessellation_vecs = fundamental_tess_vecs
+        else:
+            raise ValueError(f'Fundamental tessellation vectors shape {fundamental_tess_vecs.shape} not recognised')
         unit_shifts = np.zeros_like(tessellation_vecs).astype(int)
         unit_shifts[tessellation_vecs!=0] = np.sign(tessellation_vecs[tessellation_vecs!=0])
 
@@ -293,13 +308,16 @@ class GLAMM_rhotens_Dataset(InMemoryDataset):
             # ground truth compliance need not be given
             compliance = compliance_tensors[rel_dens]
             if compliance is not None:
-                stiffness = np.linalg.inv(compliance)
+                stiffness = np.linalg.inv(compliance) # Mandel
                 if graph_ft_format=='Voigt':
-                    stiffness = torch.from_numpy(stiffness).unsqueeze(0)
-                    compliance = torch.from_numpy(compliance).unsqueeze(0)
+                    stiffness = torch.from_numpy(elasticity_func.stiffness_Mandel_to_Voigt(stiffness)).unsqueeze(0)
+                    compliance = torch.from_numpy(elasticity_func.compliance_Mandel_to_Voigt(compliance)).unsqueeze(0)
                 elif graph_ft_format=='cartesian_4':    
-                    compliance = elasticity_func.compliance_Voigt_to_4th_order(compliance)
-                    stiffness = elasticity_func.stiffness_Voigt_to_4th_order(stiffness)
+                    compliance = elasticity_func.numpy_Mandel_to_cart_4(compliance)
+                    stiffness = elasticity_func.numpy_Mandel_to_cart_4(stiffness)
+                    compliance = torch.from_numpy(compliance).unsqueeze(0)
+                    stiffness = torch.from_numpy(stiffness).unsqueeze(0)
+                elif graph_ft_format=='Mandel':
                     compliance = torch.from_numpy(compliance).unsqueeze(0)
                     stiffness = torch.from_numpy(stiffness).unsqueeze(0)
             else:

@@ -135,6 +135,7 @@ def plot_unit_cell_2d(
 
 def plot_unit_cell_3d(
     lat, repr='cropped', coords='reduced', show_node_numbers=False,
+    show_uc_box: bool = False,
     ax=None
     ) -> plt.Axes:
 
@@ -145,6 +146,30 @@ def plot_unit_cell_3d(
     if not isinstance(ax, plt.Axes):
         fig = plt.figure(figsize=(5,5),facecolor='w')
         ax = plt.axes(projection='3d')
+
+    if show_uc_box:
+        pts = np.array(
+            [
+                [0,0,0],
+                [1,0,0],
+                [1,1,0],
+                [0,1,0],
+                [0,0,1],
+                [1,0,1],
+                [1,1,1],
+                [0,1,1]
+            ]
+        )
+        if coords=='transformed':
+            pts = lat.transform_coordinates(pts)
+        inds = [1,0,3,2,None,0,4,7,3,None,4,5,6,7,None,5,1,2,6]
+        segments = []
+        for i0, i1 in zip(inds[:-1], inds[1:]):
+            if i0 is not None and i1 is not None:
+                segments.append([pts[i0], pts[i1]])
+        uc_box = Line3DCollection(segments, colors='black', linewidths=1)
+        ax.add_collection(uc_box)      
+
     ax.scatter(nodes[:,0], nodes[:,1], nodes[:,2])
     segments = []
     colors = [] 

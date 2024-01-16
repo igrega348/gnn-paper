@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>data package &mdash; gnn-paper 0.1 documentation</title>
@@ -158,16 +158,16 @@
 <span class="sig-name descname"><span class="pre">apply_nodal_imperfections</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dr_mag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kind</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Lattice" title="data.lattice.Lattice"><span class="pre">Lattice</span></a></span></span><a class="headerlink" href="#data.Lattice.apply_nodal_imperfections" title="Permalink to this definition"></a></dt>
 <dd><p>Displace inner nodes using the fundamental representation.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>dr_mag</strong> (<em>float</em>) – magnitude of perturbation</p></li>
 <li><p><strong>kind</strong> (<em>str</em>) – ‘sphere_surf’ or ‘sphere_solid’ or ‘gaussian’</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>modified lattice with nodal imperfections</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#data.Lattice" title="data.Lattice">Lattice</a></p>
 </dd>
 </dl>
@@ -213,19 +213,19 @@ calculate unit cell volume as</p>
 <span class="sig-name descname"><span class="pre">calculate_edge_lengths</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">edge_representation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cropped'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'reduced'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.calculate_edge_lengths" title="Permalink to this definition"></a></dt>
 <dd><p>Calculate edge lengths in a given representation</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>edge_representation</strong> (<em>str</em><em>, </em><em>optional</em>) – Use edges cropped to                 fit within unit cell window (‘cropped’) or fundamental edge                 representation (‘fundamental’). Defaults to ‘cropped’.</p></li>
 <li><p><strong>coords</strong> (<em>str</em><em>, </em><em>optional</em>) – Use nodal coordinates in                 ‘reduced’ or ‘transformed’ coordinate system.                 Defaults to ‘reduced’.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Raises</dt>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>ValueError</strong> – if input parameters are not from the allowed set</p>
 </dd>
-<dt class="field-odd">Returns</dt>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>edge lengths of shape (num_edges,) if                 <cite>edge_representation`is ‘cropped’ or (num_fundamental_edges,)                 if `edge_representation</cite> is ‘fundamental’.</p>
 </dd>
-<dt class="field-even">Return type</dt>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>np.ndarray</p>
 </dd>
 </dl>
@@ -234,21 +234,21 @@ calculate unit cell volume as</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="data.Lattice.calculate_edge_radius">
 <span class="sig-name descname"><span class="pre">calculate_edge_radius</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rel_dens</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'transformed'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#data.Lattice.calculate_edge_radius" title="Permalink to this definition"></a></dt>
-<dd><p>Set edge radii according to relative density.</p>
+<dd><p>Calculate uniform edge radii according to relative density.</p>
 <div class="math notranslate nohighlight">
 \[r = \sqrt{\frac{\bar{\rho} \ V}{\pi L}}\]</div>
 <p>where <span class="math notranslate nohighlight">\(\bar{\rho}\)</span> is the relative density,             <span class="math notranslate nohighlight">\(V\)</span> is volume of the unit cell,             and <span class="math notranslate nohighlight">\(L\)</span> is sum of the edge lengths.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>rel_dens</strong> (<em>float</em>) – target relative density</p></li>
 <li><p><strong>coords</strong> (<em>str</em><em>, </em><em>optional</em>) – Use ‘transformed’ or ‘reduced’ coordinates.                 Defaults to ‘transformed’.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>edge radius that gives the target relative density</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>float</p>
 </dd>
 </dl>
@@ -298,10 +298,10 @@ inner nodes and tesselation vectors.</p>
 <span class="sig-name descname"><span class="pre">calculate_nodal_connectivity</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">int32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.calculate_nodal_connectivity" title="Permalink to this definition"></a></dt>
 <dd><p>Calculate how many times nodes appear in the edge adjacency map.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>connectivity of each node</p>
 </dd>
-<dt class="field-even">Return type</dt>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>array[int] (num_nodes,)</p>
 </dd>
 </dl>
@@ -309,18 +309,18 @@ inner nodes and tesselation vectors.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="data.Lattice.calculate_node_distances">
-<span class="sig-name descname"><span class="pre">calculate_node_distances</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">repr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'reduced'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Lattice.calculate_node_distances" title="Permalink to this definition"></a></dt>
-<dd><p>Find the minimum distance between all pairs of nodes.</p>
+<span class="sig-name descname"><span class="pre">calculate_node_distances</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">repr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'reduced'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.calculate_node_distances" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate distances between all pairs of nodes.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>repr</strong> – ‘reduced’ or ‘transformed’</p>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>array of distances
-indices [num_nodes, 2]: indices of nodes corresponding to distances</p>
+indices [num_pairs, 2]: indices of nodes corresponding to distances</p>
 </dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>distances [num_nodes]</p>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>distances [num_pairs]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -330,7 +330,7 @@ indices [num_nodes, 2]: indices of nodes corresponding to distances</p>
 <span class="sig-name descname"><span class="pre">calculate_node_types</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Set</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.calculate_node_types" title="Permalink to this definition"></a></dt>
 <dd><p>Calculate types of nodes from reduced representation</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p><dl class="simple">
 <dt>a dictionary with sets of</dt><dd><ul class="simple">
 <li><p>corner_nodes (3 d.o.f. lie on UC boundary)</p></li>
@@ -342,8 +342,25 @@ indices [num_nodes, 2]: indices of nodes corresponding to distances</p>
 </dl>
 </p>
 </dd>
-<dt class="field-even">Return type</dt>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>Dict[str, Set]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.calculate_relative_density">
+<span class="sig-name descname"><span class="pre">calculate_relative_density</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'transformed'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#data.Lattice.calculate_relative_density" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate relative density of the lattice.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>coords</strong> (<em>str</em><em>, </em><em>optional</em>) – Use ‘transformed’ or ‘reduced’ coordinates.                 Defaults to ‘transformed’.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>relative density of the lattice</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
 </dd>
 </dl>
 </dd></dl>
@@ -383,17 +400,17 @@ All nodal coordinates which are very close to 0 or UC_L
 <span class="sig-name descname"><span class="pre">create_tesselated</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nz</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Lattice" title="data.lattice.Lattice"><span class="pre">Lattice</span></a></span></span><a class="headerlink" href="#data.Lattice.create_tesselated" title="Permalink to this definition"></a></dt>
 <dd><p>Create periodic tesselation of the lattice</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>nx</strong> (<em>int</em>) – number of times to repeat in x-direction</p></li>
 <li><p><strong>ny</strong> (<em>int</em>) – number of times to repeat in y-direction</p></li>
 <li><p><strong>nz</strong> (<em>int</em>) – number of times to repeat in z-direction</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>tesselated lattice</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#data.Lattice" title="data.Lattice">Lattice</a></p>
 </dd>
 </dl>
@@ -415,10 +432,10 @@ All nodal coordinates which are very close to 0 or UC_L
 <span class="sig-name descname"><span class="pre">create_windowed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_num_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_edge_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.005</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Lattice" title="data.lattice.Lattice"><span class="pre">Lattice</span></a></span></span><a class="headerlink" href="#data.Lattice.create_windowed" title="Permalink to this definition"></a></dt>
 <dd><p>Create a windowed representation of a lattice</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>a new lattice instance</p>
 </dd>
-<dt class="field-even">Return type</dt>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference internal" href="#data.Lattice" title="data.Lattice">Lattice</a></p>
 </dd>
 </dl>
@@ -466,14 +483,14 @@ All nodal coordinates which are very close to 0 or UC_L
 <dd><p>Find intersections between edge pairs.</p>
 <p>Operates on reduced adjacency representation.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p><dl class="simple">
 <dt>dictionary with edge indices</dt><dd><p>as keys and coordinates of intersection points as values</p>
 </dd>
 </dl>
 </p>
 </dd>
-<dt class="field-even">Return type</dt>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>edge_intersection_points</p>
 </dd>
 </dl>
@@ -522,10 +539,10 @@ All nodal coordinates which are very close to 0 or UC_L
 <dd><p>Calculate periodic partners.</p>
 <p>Check is done first whether lattice is in a valid window condition.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>list of 2-element sets of node numbers                 of periodic partners</p>
 </dd>
-<dt class="field-even">Return type</dt>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>list</p>
 </dd>
 </dl>
@@ -591,16 +608,16 @@ and collapse self-incident edges</p>
 <span class="sig-name descname"><span class="pre">obtain_shift_vector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_num_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_edge_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.005</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Lattice.obtain_shift_vector" title="Permalink to this definition"></a></dt>
 <dd><p>Get a shift vector for windowed representation.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Raises</dt>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>WindowingException</strong> – _description_</p></li>
 <li><p><strong>WindowingException</strong> – _description_</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>_description_</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>npt.NDArray (3,)</p>
 </dd>
 </dl>
@@ -638,11 +655,22 @@ to a specific number of decimal places.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="data.Lattice.set_fundamental_edge_radii">
+<span class="sig-name descname"><span class="pre">set_fundamental_edge_radii</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">edge_radii</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">Iterable</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.set_fundamental_edge_radii" title="Permalink to this definition"></a></dt>
+<dd><p>Set radii of fundamental edges.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>edge_radii</strong> (<em>Union</em><em>[</em><em>Iterable</em><em>, </em><em>float</em><em>]</em>) – list of edge radii or single float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="data.Lattice.split_edges_by_points">
 <span class="sig-name descname"><span class="pre">split_edges_by_points</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">edge_split_coords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Set</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.split_edges_by_points" title="Permalink to this definition"></a></dt>
 <dd><p>Split edges at specific coordinate points.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>edge_split_coords</strong> (<em>List</em><em>[</em><em>Tuple</em><em>[</em><em>Set</em><em>, </em><em>npt.NDArray</em><em>]</em><em>]</em>) – list of tuples
 (edge, point_array) in format as returned by functions
 <a class="reference internal" href="#data.Lattice.find_nodes_on_edges" title="data.Lattice.find_nodes_on_edges"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_nodes_on_edges()</span></code></a> and <a class="reference internal" href="#data.Lattice.find_edge_intersections" title="data.Lattice.find_edge_intersections"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_edge_intersections()</span></code></a>.
@@ -700,13 +728,13 @@ in point_array.</p>
 <dd><p>Transform coordinates based on lattice constants.</p>
 <p>Coordinates can be any O(3) vectors (e.g. node positions or edge vectors).</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>coordinates</strong> (<em>Iterable</em>) – broadcastable into shape (N,3)</p>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>transformed coordinates</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>np.ndarray (N,3)</p>
 </dd>
 </dl>
@@ -722,6 +750,20 @@ to all other available formats.</p>
 <p># TODO: update all relevant attributes</p>
 </dd></dl>
 
+<dl class="py property">
+<dt class="sig sig-object py" id="data.Lattice.windowed_edge_radii">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">windowed_edge_radii</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">ScalarType</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#data.Lattice.windowed_edge_radii" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate edge radii for windowed edges from fundamental edge radii</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>edge radii for windowed edges</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>npt.NDArray</p>
+</dd>
+</dl>
+</dd></dl>
+
 </dd></dl>
 
 </section>
@@ -729,7 +771,7 @@ to all other available formats.</p>
 <h2>The <code class="docutils literal notranslate"><span class="pre">Catalogue</span></code> class<a class="headerlink" href="#the-catalogue-class" title="Permalink to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="data.Catalogue">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">data.</span></span><span class="sig-name descname"><span class="pre">Catalogue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indexing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Catalogue" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">data.</span></span><span class="sig-name descname"><span class="pre">Catalogue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indexing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">attrs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Catalogue" title="Permalink to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Unit cell catalogue object.</p>
 <div class="admonition note">
@@ -772,10 +814,10 @@ or when unit cells from a file are modified</p>
 <em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lattice_dicts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Catalogue" title="data.catalogue.Catalogue"><span class="pre">Catalogue</span></a></span></span><a class="headerlink" href="#data.Catalogue.from_dict" title="Permalink to this definition"></a></dt>
 <dd><p>Generate unit cell catalogue from dictionary representation</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>lattice_dicts</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Dict</em><em>]</em>) – dictionary of lattice dictionaries</p>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Catalogue</p>
 </dd>
 </dl>
@@ -789,9 +831,12 @@ or when unit cells from a file are modified</p>
 </dd>
 <dt>They can contain also:</dt><dd><ul class="simple">
 <li><p><cite>lattice_constants</cite></p></li>
-<li><p><cite>compliance_tensors</cite></p></li>
+<li><p><cite>compliance_tensors</cite>   # assuming Voigt notation, legacy support</p></li>
+<li><p><cite>compliance_tensors_V</cite> # Voigt notation</p></li>
+<li><p><cite>compliance_tensors_M</cite> # Mandel notation</p></li>
 <li><p><cite>fundamental_edge_adjacency</cite></p></li>
 <li><p><cite>fundamental_tesselation_vecs</cite></p></li>
+<li><p><cite>fundamental_edge_radii</cite></p></li>
 <li><p><cite>base_name</cite></p></li>
 <li><p><cite>imperfection_kind</cite></p></li>
 <li><p><cite>imperfection_level</cite></p></li>
@@ -804,17 +849,36 @@ or when unit cells from a file are modified</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="data.Catalogue.from_file">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indexing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Catalogue" title="data.catalogue.Catalogue"><span class="pre">Catalogue</span></a></span></span><a class="headerlink" href="#data.Catalogue.from_file" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indexing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">progress</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regex</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#data.Catalogue" title="data.catalogue.Catalogue"><span class="pre">Catalogue</span></a></span></span><a class="headerlink" href="#data.Catalogue.from_file" title="Permalink to this definition"></a></dt>
 <dd><p>Read catalogue from a file.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>fn</strong> (<em>str</em>) – path to input file</p></li>
 <li><p><strong>indexing</strong> (<em>int</em>) – 0 or 1 as the basis of edge indexing</p></li>
+<li><p><strong>progress</strong> (<em>bool</em><em>, </em><em>optional</em>) – whether to show progress bar. Defaults to False.</p></li>
+<li><p><strong>regex</strong> (<em>str</em><em>, </em><em>optional</em>) – regular expression to filter names. Defaults to None.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Catalogue</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="data.Catalogue.get_names">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_names</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#data.Catalogue.get_names" title="Permalink to this definition"></a></dt>
+<dd><p>Retrieve names from catalogue without reading it into memory.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fn</strong> (<em>str</em>) – path to input file</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>list of names</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List[str]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -824,14 +888,14 @@ or when unit cells from a file are modified</p>
 <span class="sig-name descname"><span class="pre">get_unit_cell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#data.Catalogue.get_unit_cell" title="Permalink to this definition"></a></dt>
 <dd><p>Return a dictionary which represents unit cell.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – Name of the unit cell from the catalogue that
 will be returned</p>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Dictionary describing the unit cell</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>dict</p>
 </dd>
 </dl>
@@ -842,11 +906,13 @@ will be returned</p>
 <li><p><cite>name</cite></p></li>
 <li><p><cite>lattice constants</cite>: [a,b,c,alpha,beta,gamma]</p></li>
 <li><p><cite>average connectivity</cite></p></li>
-<li><p><cite>compliance_tensors</cite></p></li>
+<li><p><cite>compliance_tensors_M</cite>: dictionary {rel_dens: compliance tensor}</p></li>
+<li><p><cite>compliance_tensors_V</cite>: dictionary {rel_dens: compliance tensor}</p></li>
 <li><p><cite>nodal_positions</cite>: nested list of shape (num_nodes, 3)</p></li>
 <li><p><cite>edge_adjacency</cite>: nested list of shape (num_edges, 2) (0-indexed)</p></li>
 <li><p><cite>fundamental_edge_adjacency</cite>: nested list of shape (num_fundamental_edges, 2) (0-indexed)</p></li>
-<li><p><cite>fundamental_tesselation_vecs</cite>: nested list of shape (num_fundamental_edges, 6) (0-indexed)</p></li>
+<li><p><cite>fundamental_tesselation_vecs</cite>: nested list of shape (num_fundamental_edges, 6) or (num_fundamental_edges, 3) (0-indexed)</p></li>
+<li><p><cite>fundamental_edge_radii</cite>: dictionary {rel_dens: list of edge radii}</p></li>
 </ul>
 </dd>
 </dl>
@@ -866,11 +932,36 @@ will be returned</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="data.Catalogue.n_2_bn">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">n_2_bn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#data.Catalogue.n_2_bn" title="Permalink to this definition"></a></dt>
+<dd><p>Convert name of a unit cell to base name.</p>
+<dl class="simple">
+<dt>Relies on the following naming convention:</dt><dd><p>[base_name]_p_[imperfection_level]_[nodal_hash]</p>
+</dd>
+<dt>where <cite>base_name</cite> is of the form:</dt><dd><p>[symmetry]_[connectivity]_[code]</p>
+</dd>
+<dt>For instance:</dt><dd><p>cub_Z12.0_E19_p_0.0_9113732828474860344</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – Name of the unit cell</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Base name of the unit cell</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="data.Catalogue.to_file">
 <span class="sig-name descname"><span class="pre">to_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Catalogue.to_file" title="Permalink to this definition"></a></dt>
 <dd><p>Export unit cell catalogue to file.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>fn</strong> (<em>str</em>) – output file path</p>
 </dd>
 </dl>

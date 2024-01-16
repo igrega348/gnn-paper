@@ -242,6 +242,13 @@ class Lattice:
         return self.transform_coordinates(nodes)
     
     @property
+    def transformed_tesselation_vecs(self) -> npt.NDArray:
+        vecs = self.fundamental_tesselation_vecs # [N,6]
+        vecs[:,:3] = self.transform_coordinates(vecs[:,:3])
+        vecs[:,3:] = self.transform_coordinates(vecs[:,3:])
+        return vecs
+    
+    @property
     def windowed_edge_radii(self) -> npt.NDArray:
         """Calculate edge radii for windowed edges from fundamental edge radii
 

@@ -369,7 +369,7 @@ class Catalogue:
                     compl_end = i_line
                 if 'Mandel' in line:
                     compl_format = 'M'
-                elif 'Voigt' in line:
+                else:
                     compl_format = 'V'
             elif 'Nodal positions' in line:
                 nod_pos_start = i_line
@@ -479,3 +479,24 @@ class Catalogue:
         os.makedirs(os.path.dirname(fn), exist_ok=True)
         with open(fn, 'w') as fout:
             fout.writelines(outlines)
+
+    @staticmethod
+    def n_2_bn(name: str) -> str:
+        """Convert name of a unit cell to base name.
+
+        Relies on the following naming convention:
+            [base_name]_p_[imperfection_level]_[nodal_hash]
+        where `base_name` is of the form:
+            [symmetry]_[connectivity]_[code]
+        For instance:
+            cub_Z12.0_E19_p_0.0_9113732828474860344
+
+        Args:
+            name (str): Name of the unit cell
+
+        Returns:
+            str: Base name of the unit cell
+        """
+        fields = name.split('_')
+        assert len(fields)>=3
+        return '_'.join(fields[:3])

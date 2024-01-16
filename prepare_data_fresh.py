@@ -23,7 +23,7 @@ def process_one(
 
     MAX_TRY = 10
     IMP_KIND = 'sphere_surf'
-    NUM_RELDENS = 10
+    # NUM_RELDENS = 10
 
     outputs = []
 
@@ -64,7 +64,7 @@ def process_one(
     try:
         lat = lat.create_windowed()
         lat.calculate_fundamental_representation()
-    except WindowingError:
+    except (WindowingError, PeriodicPartnersError):
         return []
 
     num_fundamental_nodes = lat.num_fundamental_nodes
@@ -72,8 +72,8 @@ def process_one(
     if num_fundamental_nodes==1:
         imp_levels = [0.0]
     else:
-        # imp_levels = [0.0]
-        imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
+        imp_levels = [0.0]
+        # imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
 
     for imperfection_level in imp_levels:
 
@@ -131,7 +131,7 @@ def process_one(
                     'Relative densities': ', '.join([f'{rd:.5g}' for rd in relative_densities]),
                     'Strut radii': ', '.join([f'{sr:.5g}' for sr in strut_radii]),
                     'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
-                    'Description':f'New dataset with B31 and 4 elements per strut',
+                    'Description':f'Comparison dataset with no imperfections (B31 and 4 elements per strut)',
                     'Imperfection level':f'{imperfection_level}',
                     'Hash':hsh,
                 },
@@ -155,14 +155,14 @@ def main():
     cat = Catalogue.from_file('./Unit_Cell_Catalog.txt', 1)
     print('Full catalogue: ', cat)
     # %
-    # process catalogue in 50 chunks
+    # process catalogue in 1 chunk
     num_cat = int(sys.argv[1])
-    cat = cat[slice(num_cat, len(cat), 50)]
+    # cat = cat[slice(num_cat, len(cat), 50)]
     print('Selected: ', cat)
     
     MESH = {'max_length':1.0, 'min_div':4}
     BEAM_TYPE = 'B31'
-    postfix = f'_{MESH["min_div"]}_{BEAM_TYPE}'
+    postfix = f'_base2'
     dname = f'E:/dset{postfix}'
     new_cat_name = f'{dname}/m_cat_{num_cat:02d}{postfix}.lat'
     new_cat_dict = dict()

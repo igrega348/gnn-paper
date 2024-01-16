@@ -19,7 +19,7 @@ def process_one(lat_data: dict, dname: str) -> list:
 
     MAX_TRY = 10
     IMP_KIND = 'sphere_surf'
-    NUM_RELDENS = 10
+    NUM_RELDENS = 3
 
     outputs = []
 
@@ -59,7 +59,7 @@ def process_one(lat_data: dict, dname: str) -> list:
     try:
         lat = lat.create_windowed()
         lat.calculate_fundamental_representation()
-    except WindowingError:
+    except (WindowingError,PeriodicPartnersError):
         return []
 
     num_fundamental_nodes = lat.num_fundamental_nodes
@@ -67,15 +67,14 @@ def process_one(lat_data: dict, dname: str) -> list:
     if num_fundamental_nodes==1:
         imp_levels = [0.0]
     else:
-        imp_levels = [0.0, 0.02, 0.10]
-        # imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
+        imp_levels = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.07, 0.10]
 
     for imperfection_level in imp_levels:
 
         if imperfection_level==0.0:
             num_imperf = 1
         else:
-            num_imperf = 10
+            num_imperf = 5
 
         for i_imperf in range(num_imperf):
 
@@ -93,7 +92,7 @@ def process_one(lat_data: dict, dname: str) -> list:
                 except (PeriodicPartnersError, WindowingError):
                     pass
             if not found:
-                print(f'Lattice {lat.name} failed')
+                print(f'\rLattice {lat.name} failed')
                 break
 
             hsh = hash(lat_imp.reduced_node_coordinates.tobytes())
@@ -107,16 +106,12 @@ def process_one(lat_data: dict, dname: str) -> list:
             lat_dict['nodal_hash'] = hsh
             lat_dict['fundamental_edge_radii'] = {}
 
-            r0 = np.sqrt(0.001)
-            r1 = np.sqrt(0.05)
-            r = np.linspace(r0,r1,NUM_RELDENS)
-            relative_densities = r**2
+            base_rel_dens = [0.01, 0.003]
+            base_edge_radii = [lat_imp.calculate_edge_radius(rel_dens) for rel_dens in base_rel_dens]
             windowed_edge_radii = []
             true_rel_den = []
-            for base_rd in relative_densities:
-                edge_radius = lat_imp.calculate_edge_radius(base_rd)
-                edge_radii = np.random.normal(edge_radius, 0.2*edge_radius, lat_imp.num_fundamental_edges)
-                edge_radii[edge_radii < 0.2*edge_radius] = 0.2*edge_radius
+            for _ in range(NUM_RELDENS):
+                edge_radii = np.random.choice(base_edge_radii, lat_imp.num_fundamental_edges)
                 lat_imp.set_fundamental_edge_radii(edge_radii)
                 windowed_edge_radii.append(lat_imp.windowed_edge_radii)
                 rel_dens = lat_imp.calculate_relative_density()
@@ -141,8 +136,8 @@ def process_one(lat_data: dict, dname: str) -> list:
                     'Hash':hsh,
                 },
                 fname=os.path.join(dname, job_name+'.inp'),
-                element_type='B33',
-                mesh_params={'max_length':1, 'min_div':3}
+                element_type='B31',
+                mesh_params={'max_length':1, 'min_div':4}
             )
 
             outputs.append(lat_dict)
@@ -160,14 +155,13 @@ def main():
     cat = Catalogue.from_file('./Unit_Cell_Catalog.txt', 1)
     print('Full catalogue: ', cat)
     # %
-    # process catalogue in 10 chunks
-    # num_cat = 0
+    # process catalogue in 50 chunks
     num_cat = int(sys.argv[1])
-    cat = cat[slice(num_cat, len(cat), 10)]
+    cat = cat[slice(num_cat, len(cat), 50)]
     print('Selected: ', cat)
     
-    dname = 'C:/temp/rad_dset_0'
-    new_cat_name = f'{dname}/m_cat_{num_cat:02d}.lat'
+    dname = 'E:/rad_dset_1'
+    new_cat_name = f'{dname}/m_cat_{num_cat:02d}_rad.lat'
     new_cat_dict = dict()
 
     base_job_num = 0
@@ -180,8 +174,8 @@ def main():
 
     process_partial = partial(process_one, dname=os.path.join(dname, f'input_files_{num_cat:02d}'))
 
-    with Pool(processes=2) as p:
-        results = list(tqdm(p.imap(process_partial, input_dicts), total=len(input_dicts), smoothing=0.1))
+    with Pool(processes=4) as p:
+        results = list(tqdm(p.imap(process_partial, input_dicts), total=len(input_dicts), smoothing=0.05))
 
     for result in results:
         if not result:
@@ -196,7 +190,7 @@ def main():
 
     # use tarfile to compress the contents of the input_files folder
     with tarfile.open(os.path.join(dname, f'input_files_{num_cat:02d}.tar.gz'), 'w:gz') as archive:
-        archive.add(os.path.join(dname, f'input_files_{num_cat:02d}'), arcname='input_files')
+        archive.add(os.path.join(dname, f'input_files_{num_cat:02d}'), arcname=f'input_files_{num_cat:02d}')
 
     # delete the input_files folder with all the input files
     shutil.rmtree(os.path.join(dname, f'input_files_{num_cat:02d}'))
