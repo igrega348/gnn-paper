@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>data package &mdash; gnn-paper 0.1 documentation</title>
+  <title>data package &mdash; gnn-paper 1.0 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/plot_directive.css" type="text/css" />
@@ -26,6 +26,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="utils package" href="utils.html" />
     <link rel="prev" title="Welcome to gnn-paper’s documentation!" href="index.html" /> 
 </head>
 
@@ -55,6 +56,7 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">utils package</a></li>
 </ul>
 
         </div>
@@ -89,6 +91,19 @@
 <dt class="sig sig-object py" id="data.Lattice">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">data.</span></span><span class="sig-name descname"><span class="pre">Lattice</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lattice_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodal_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_adjacency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_coordinates</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fundamental_edge_adjacency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fundamental_tesselation_vecs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#data.Lattice" title="Permalink to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py property">
+<dt class="sig sig-object py" id="data.Lattice.UC_volume">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">UC_volume</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#data.Lattice.UC_volume" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate unit cell volume from internally-stored crystal data</p>
+<p>Given internally-stored crystal data
+<span class="math notranslate nohighlight">\(a,b,c,{\alpha},{\beta},{\gamma}\)</span>,
+calculate unit cell volume as</p>
+<div class="math notranslate nohighlight">
+\[abc \sqrt{1 - \cos({\alpha})^2 - \cos(\beta)^2 - \cos(\gamma)^2 + 2\cos(\alpha)\cos(\beta)\cos(\gamma)}\]</div>
+<p>For more details see the supporting information of PNAS paper at
+<a class="reference external" href="https://www.pnas.org/doi/10.1073/pnas.2003504118">https://www.pnas.org/doi/10.1073/pnas.2003504118</a></p>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="data.Lattice.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lattice_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodal_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_adjacency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_coordinates</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fundamental_edge_adjacency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fundamental_tesselation_vecs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#data.Lattice.__init__" title="Permalink to this definition"></a></dt>
@@ -193,19 +208,6 @@
 <p class="admonition-title">See also</p>
 <p><a class="reference internal" href="#data.Lattice.calculate_fundamental_representation" title="data.Lattice.calculate_fundamental_representation"><code class="xref py py-func docutils literal notranslate"><span class="pre">calculate_fundamental_representation()</span></code></a></p>
 </div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="data.Lattice.calculate_UC_volume">
-<span class="sig-name descname"><span class="pre">calculate_UC_volume</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#data.Lattice.calculate_UC_volume" title="Permalink to this definition"></a></dt>
-<dd><p>Calculate unit cell volume from internally-stored crystal data</p>
-<p>Given internally-stored crystal data
-<span class="math notranslate nohighlight">\(a,b,c,{\alpha},{\beta},{\gamma}\)</span>,
-calculate unit cell volume as</p>
-<div class="math notranslate nohighlight">
-\[abc \sqrt{1 - \cos({\alpha})^2 - \cos(\beta)^2 - \cos(\gamma)^2 + 2\cos(\alpha)\cos(\beta)\cos(\gamma)}\]</div>
-<p>For more details see the supporting information of PNAS paper at
-<a class="reference external" href="https://www.pnas.org/doi/10.1073/pnas.2003504118">https://www.pnas.org/doi/10.1073/pnas.2003504118</a></p>
 </dd></dl>
 
 <dl class="py method">
@@ -983,12 +985,13 @@ will be returned</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="Welcome to gnn-paper’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="utils.html" class="btn btn-neutral float-right" title="utils package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2022, Ivan Grega.</p>
+    <p>&#169; Copyright 2024, Ivan Grega.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

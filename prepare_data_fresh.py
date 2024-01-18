@@ -130,7 +130,7 @@ def process_one(
                     'Date':datetime.datetime.now().strftime("%Y-%m-%d"), 
                     'Relative densities': ', '.join([f'{rd:.5g}' for rd in relative_densities]),
                     'Strut radii': ', '.join([f'{sr:.5g}' for sr in strut_radii]),
-                    'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
+                    'Unit cell volume':f'{lat_imp.UC_volume:.5g}',
                     'Description':f'Comparison dataset with no imperfections (B31 and 4 elements per strut)',
                     'Imperfection level':f'{imperfection_level}',
                     'Hash':hsh,

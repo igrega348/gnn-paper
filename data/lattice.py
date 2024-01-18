@@ -1,11 +1,15 @@
 import copy
 import logging
+import warnings
 from collections.abc import Sequence, Iterable
 from typing import Optional, Tuple, List, Set, Dict, Union
 import numpy as np
 import numpy.typing as npt
 from math import ceil
-from scipy.spatial import transform
+try:
+    from scipy.spatial import transform
+except ImportError:
+    warnings.warn('ImportError. scipy.spatial.transform not available')
 logging.getLogger('data.lattice').addHandler(logging.NullHandler())
 from .elasticity_func import compliance_Voigt_to_Mandel
 
@@ -235,6 +239,41 @@ class Lattice:
                 ==self.fundamental_edge_adjacency.shape[0])
             return self.fundamental_edge_adjacency.shape[0]
 
+    @staticmethod
+    def calculate_UC_volume(crys_data: Iterable) -> float:
+        a = crys_data[0]
+        b = crys_data[1]
+        c = crys_data[2]
+        alpha = crys_data[3] * np.pi/180 # in radians
+        beta = crys_data[4] * np.pi/180
+        gamma = crys_data[5] * np.pi/180
+        
+        term = (1.0 
+                - (np.cos(alpha))**2.0 
+                - (np.cos(beta))**2.0 
+                - (np.cos(gamma))**2.0)
+        term = term + 2.0 * np.cos(alpha) * np.cos(beta) * np.cos(gamma)
+        uc_volume = a*b*c* np.sqrt( term )  
+        return uc_volume
+
+    @property
+    def UC_volume(self) -> float:
+        """Calculate unit cell volume from internally-stored crystal data
+
+        Given internally-stored crystal data 
+        :math:`a,b,c,{\\alpha},{\\beta},{\\gamma}`, 
+        calculate unit cell volume as
+
+        .. math::
+
+            abc \sqrt{1 - \cos({\\alpha})^2 - \cos(\\beta)^2 - \cos(\\gamma)^2 + 2\cos(\\alpha)\cos(\\beta)\cos(\\gamma)}
+
+        For more details see the supporting information of PNAS paper at
+        https://www.pnas.org/doi/10.1073/pnas.2003504118
+
+        """
+        crys_data = self.lattice_constants
+        return self.calculate_UC_volume(crys_data)
     
     @property
     def transformed_node_coordinates(self) -> npt.NDArray:
@@ -262,25 +301,9 @@ class Lattice:
         else:
             assert len(self.fundamental_edge_map)==self.num_edges
             return self.fundamental_edge_radii[self.fundamental_edge_map]
-
-
-    def calculate_UC_volume(self) -> float:
-        """Calculate unit cell volume from internally-stored crystal data
-
-        Given internally-stored crystal data 
-        :math:`a,b,c,{\\alpha},{\\beta},{\\gamma}`, 
-        calculate unit cell volume as
-
-        .. math::
-
-            abc \sqrt{1 - \cos({\\alpha})^2 - \cos(\\beta)^2 - \cos(\\gamma)^2 + 2\cos(\\alpha)\cos(\\beta)\cos(\\gamma)}
-
-        For more details see the supporting information of PNAS paper at
-        https://www.pnas.org/doi/10.1073/pnas.2003504118
-
-        """
-        crys_data = self.lattice_constants
         
+    @staticmethod
+    def calculate_transform_matrix(crys_data: Iterable) -> npt.NDArray:
         a = crys_data[0]
         b = crys_data[1]
         c = crys_data[2]
@@ -288,30 +311,8 @@ class Lattice:
         beta = crys_data[4] * np.pi/180
         gamma = crys_data[5] * np.pi/180
         
-        term = (1.0 
-                - (np.cos(alpha))**2.0 
-                - (np.cos(beta))**2.0 
-                - (np.cos(gamma))**2.0)
-        term = term + 2.0 * np.cos(alpha) * np.cos(beta) * np.cos(gamma)
-        uc_volume = a*b*c* np.sqrt( term )  
-        return uc_volume
-
-    def get_transform_matrix(self) -> npt.NDArray[np.float_]:
-        """Assemble transformation matrix from crystal data.
-
-        Formula is in the Appendix to the PNAS paper:
-        Lumpe, T. S. and Stankovic, T. (2020)
-        https://www.pnas.org/doi/10.1073/pnas.2003504118.
-        """
-        crys_data = self.lattice_constants
-        a = crys_data[0]
-        b = crys_data[1]
-        c = crys_data[2]
-        alpha = crys_data[3] * np.pi/180 # in radians
-        beta = crys_data[4] * np.pi/180
-        gamma = crys_data[5] * np.pi/180
         
-        omega = self.calculate_UC_volume()
+        omega = Lattice.calculate_UC_volume(crys_data) # volume of unit cell
         
         transform_mat = np.zeros((3,3))
         transform_mat[0,0] = a
@@ -327,6 +328,18 @@ class Lattice:
         transform_mat[2,2] = ( omega / ( a*b*np.sin(gamma) ) )
 
         return transform_mat
+
+    @property
+    def transform_matrix(self) -> npt.NDArray[np.float_]:
+        """Assemble transformation matrix from crystal data.
+
+        Formula is in the Appendix to the PNAS paper:
+        Lumpe, T. S. and Stankovic, T. (2020)
+        https://www.pnas.org/doi/10.1073/pnas.2003504118.
+        """
+        crys_data = self.lattice_constants
+        return self.calculate_transform_matrix(crys_data)
+        
 
     def transform_coordinates(
         self, coordinates: Iterable,
@@ -400,7 +413,7 @@ class Lattice:
         if coords=='reduced':
             uc_vol = 1
         else:
-            uc_vol = self.calculate_UC_volume()
+            uc_vol = self.UC_volume
 
         edge_radius = np.sqrt(rel_dens*uc_vol/(sum_edge_lengths * np.pi))
         return edge_radius
@@ -425,7 +438,7 @@ class Lattice:
         if coords=='reduced':
             uc_vol = 1
         else:
-            uc_vol = self.calculate_UC_volume()
+            uc_vol = self.UC_volume
 
         rel_dens = vol_material/uc_vol
         return rel_dens
@@ -441,6 +454,7 @@ class Lattice:
             self.fundamental_edge_radii = edge_radii*np.ones(self.fundamental_edge_adjacency.shape[0])
             logging.debug(f'Set radii of all edges to {edge_radii}') # I could mark the entire code like this
         elif isinstance(edge_radii, Iterable):
+            edge_radii = np.array(edge_radii)
             assert len(edge_radii)==self.num_fundamental_edges
             self.fundamental_edge_radii = edge_radii
         else:

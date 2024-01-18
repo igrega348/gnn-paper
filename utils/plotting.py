@@ -61,7 +61,7 @@ def get_nodes_edge_coords(
     nodes = lat.reduced_node_coordinates
 
     if coords=='transformed': 
-        Q = lat.get_transform_matrix()
+        Q = lat.transform_matrix
     elif coords=='reduced':
         Q = np.eye(3)
     else: 

@@ -1,7 +1,13 @@
 import os
+import warnings
 from typing import Dict, Iterable, List, Union
 import numpy as np
-from tqdm import trange
+try:
+    from tqdm import trange
+except ImportError:
+    warnings.warn('tqdm not found, progress bar will not be shown')
+    def trange(*args, **kwargs):
+        return range(*args, **kwargs)
 import re
 
 class Catalogue:

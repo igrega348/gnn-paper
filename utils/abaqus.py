@@ -5,6 +5,7 @@ import os
 from typing import Optional, List, Tuple, Dict, Union, Iterable
 import subprocess
 import json
+import datetime
 # %%
 def get_common_normal_guess(nodes : np.ndarray, edges : np.ndarray):
     assert nodes.shape[1]==3
@@ -83,7 +84,7 @@ def write_abaqus_inp(
     metadata : Dict[str, str], 
     loading: List[Tuple] = [(1,1,1.0),(1,2,1.0),(1,3,1.0),(2,1,0.5),(2,2,0.5),(2,3,0.5)],
     fname : Optional[str] = None,
-    element_type: Optional[str] = 'B33',
+    element_type: Optional[str] = 'B31',
     ):
     """Write abaqus input script for a specific lattice and loading 
 
@@ -107,6 +108,12 @@ def write_abaqus_inp(
             Defaults to None.
 
     """
+    if 'Lattice name' not in metadata:
+        metadata['Lattice name'] = lat.name
+    if 'Job name' not in metadata:
+        assert fname is not None
+        metadata['Job name'] = os.path.splitext(os.path.basename(fname))[0]
+
     lines = []
     lines.append('*Heading')
     lines.append('** Start header')
@@ -265,7 +272,7 @@ def write_abaqus_inp_normals(
     strut_radii: np.ndarray,
     metadata : Dict[str, str], 
     fname : Optional[str] = None,
-    element_type: Optional[str] = 'B33',
+    element_type: Optional[str] = 'B31',
     loading: List[Tuple] = [(1,1,1.0),(1,2,1.0),(1,3,1.0),(2,1,0.5),(2,2,0.5),(2,3,0.5)],
     mesh_params: Dict[str, Union[float, int]] = {'max_length':1, 'min_div':3}
     ):
@@ -291,6 +298,16 @@ def write_abaqus_inp_normals(
             Defaults to None.
 
     """
+    if 'Lattice name' not in metadata:
+        metadata['Lattice name'] = lat.name
+    if 'Unit cell volume' not in metadata:
+        metadata['Unit cell volume'] = lat.UC_volume
+    if 'Date' not in metadata:
+        metadata['Date'] = datetime.datetime.now().strftime("%Y-%m-%d") 
+    if 'Job name' not in metadata:
+        assert fname is not None
+        metadata['Job name'] = os.path.splitext(os.path.basename(fname))[0]
+
     # enable variable edge radius
     assert strut_radii.ndim==2
     assert strut_radii.shape[0]==1 or strut_radii.shape[0]==lat.edge_adjacency.shape[0]
@@ -466,7 +483,7 @@ def write_abaqus_inp_nopbc(
     strut_radii: np.ndarray,
     metadata : Dict[str, str], 
     fname : Optional[str] = None,
-    element_type: Optional[str] = 'B33',
+    element_type: Optional[str] = 'B31',
     node_sets: Optional[Dict[str, Iterable]] = None,
     boundary_conditions: Optional[Dict[str, Iterable]] = None,
     ):
@@ -758,12 +775,23 @@ def check_data(data: dict) -> bool:
     return True
 
 def get_results_from_json(fname: str) -> Dict:
+    """Read homogenization results from json and return compliance tensors
+
+    Args:
+        fname (str): path to json file
+
+    Raises:
+        ValueError: if json file does not contain all required data
+
+    Returns:
+        Dict: dictionary with keys 'job', 'name', 'compliance_tensors_M'
+    """
     with open(fname, 'r') as f:
         sim_dict = json.load(f)
     name = sim_dict['Lattice name']
     jobname = sim_dict['Job name']
 
-    compliance_tensors = {}
+    compliance_tensors_M = {}
     for instance_name, data in sim_dict['Instances'].items():
 
         uc_volume = float(sim_dict['Unit cell volume'])
@@ -773,15 +801,12 @@ def get_results_from_json(fname: str) -> Dict:
             print(f'Failed to process {instance_name}')
             raise ValueError(f'Failed to process {instance_name}')
 
-        S_voigt = calculate_compliance_Voigt(data, uc_volume)
-        # S_mand = calculate_compliance_Mandel(data, uc_volume)
+        S_mand = calculate_compliance_Mandel(data, uc_volume)
         # symmetrise
-        S_voigt = 0.5*(S_voigt+S_voigt.T)
-        # S_mand = 0.5*(S_mand+S_mand.T)
+        S_mand = 0.5*(S_mand+S_mand.T)
+        compliance_tensors_M[rel_dens] = S_mand
 
-        compliance_tensors[rel_dens] = S_voigt
-
-    return {'job':jobname, 'name':name, 'compliance_tensors':compliance_tensors}
+    return {'job':jobname, 'name':name, 'compliance_tensors_M':compliance_tensors_M}
 
 def run_abq_sim(jobnames: Iterable, wdir: str = './abq_working_dir') -> List[Dict]:
     ABQ_ANALYSE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'abq_analyse_parallel.py')

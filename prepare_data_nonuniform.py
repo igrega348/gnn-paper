@@ -130,7 +130,7 @@ def process_one(lat_data: dict, dname: str) -> list:
                     'Base lattice':base_name,
                     'Date':datetime.datetime.now().strftime("%Y-%m-%d"), 
                     'Relative densities': ', '.join([f'{rd:.7g}' for rd in true_rel_den]),
-                    'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
+                    'Unit cell volume':f'{lat_imp.UC_volume:.5g}',
                     'Description':f'Fresh dataset, varying strut radii',
                     'Imperfection level':f'{imperfection_level}',
                     'Hash':hsh,

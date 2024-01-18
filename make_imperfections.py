@@ -107,7 +107,7 @@ with tarfile.open(f'./input_files1_cat_{num_cat}.tar.gz', 'w:gz') as archive:
                         'Date':'2023-03-09', 
                         'Relative densities': ', '.join([f'{rd:.4g}' for rd in relative_densities]),
                         'Strut radii': ', '.join([f'{sr:.4g}' for sr in strut_radii]),
-                        'Unit cell volume':f'{lat_imp.calculate_UC_volume():.5g}',
+                        'Unit cell volume':f'{lat_imp.UC_volume:.5g}',
                         'Description':f'Simulations with imperfection level {imperfection_level}',
                         'Imperfection level':f'{imperfection_level}',
                         'Catalogue':new_cat_name,

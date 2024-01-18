@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Index &mdash; gnn-paper 0.1 documentation</title>
+  <title>Index &mdash; gnn-paper 1.0 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/plot_directive.css" type="text/css" />
@@ -44,6 +44,7 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="data.html">data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">utils package</a></li>
 </ul>
 
         </div>
@@ -121,11 +122,9 @@
 </li>
       <li><a href="data.html#data.Lattice.calculate_node_types">calculate_node_types() (data.Lattice method)</a>
 </li>
-      <li><a href="data.html#data.Lattice.calculate_relative_density">calculate_relative_density() (data.Lattice method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="data.html#data.Lattice.calculate_UC_volume">calculate_UC_volume() (data.Lattice method)</a>
+      <li><a href="data.html#data.Lattice.calculate_relative_density">calculate_relative_density() (data.Lattice method)</a>
 </li>
       <li><a href="data.html#data.Catalogue">Catalogue (class in data)</a>
 </li>
@@ -202,13 +201,15 @@
 </li>
       <li><a href="data.html#data.Lattice.merge_nonunique_nodes">merge_nonunique_nodes() (data.Lattice method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     module
 
       <ul>
         <li><a href="data.html#module-data.elasticity_func">data.elasticity_func</a>
+</li>
+        <li><a href="utils.html#module-utils.abaqus">utils.abaqus</a>
+</li>
+        <li><a href="utils.html#module-utils.plotting">utils.plotting</a>
 </li>
       </ul></li>
   </ul></td>
@@ -275,8 +276,26 @@
 <h2 id="U">U</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="data.html#data.Lattice.UC_volume">UC_volume (data.Lattice property)</a>
+</li>
       <li><a href="data.html#data.Lattice.update_representations">update_representations() (data.Lattice method)</a>
 </li>
+      <li>
+    utils.abaqus
+
+      <ul>
+        <li><a href="utils.html#module-utils.abaqus">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    utils.plotting
+
+      <ul>
+        <li><a href="utils.html#module-utils.plotting">module</a>
+</li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -284,6 +303,14 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="data.html#data.Lattice.windowed_edge_radii">windowed_edge_radii (data.Lattice property)</a>
+</li>
+      <li><a href="utils.html#utils.abaqus.write_abaqus_inp">write_abaqus_inp() (in module utils.abaqus)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="utils.html#utils.abaqus.write_abaqus_inp_nopbc">write_abaqus_inp_nopbc() (in module utils.abaqus)</a>
+</li>
+      <li><a href="utils.html#utils.abaqus.write_abaqus_inp_normals">write_abaqus_inp_normals() (in module utils.abaqus)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -297,7 +324,7 @@
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2022, Ivan Grega.</p>
+    <p>&#169; Copyright 2024, Ivan Grega.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

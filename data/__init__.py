@@ -1,6 +1,10 @@
+import warnings
 from . import elasticity_func
 from .catalogue import Catalogue
-from .datasets import GLAMM_rhotens_Dataset
+try:
+    from .datasets import GLAMM_rhotens_Dataset
+except ImportError:
+    warnings.warn('ImportError. GLAMM_rhotens_Dataset not available')
 from .lattice import Lattice
 from .lattice import PeriodicPartnersError, WindowingError
 

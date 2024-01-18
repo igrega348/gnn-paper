@@ -1,7 +1,12 @@
 # %%
+import warnings
 import numpy as np
-import torch
 from typing import Union
+try:
+    import torch
+    Tensor = torch.Tensor
+except ImportError:
+    Tensor = np.ndarray
 # %% Enforce various symmetries on compliance tensors
 def enforce_trigonal(S0 : np.ndarray) -> np.ndarray:
     S = S0.copy()
@@ -398,7 +403,7 @@ def scaling_law_fit(youngs_moduli: dict):
 
     return exponents, constants
 # %%  FUNCTIONS SHARED BETWEEN NUMPY AND TORCH ###
-def _cart_4_tensor_to_Mandel_inplace(C4: Union[np.ndarray, torch.Tensor], C_2: Union[np.ndarray, torch.Tensor], mask: Union[np.ndarray, torch.Tensor]):
+def _cart_4_tensor_to_Mandel_inplace(C4: Union[np.ndarray, Tensor], C_2: Union[np.ndarray, Tensor], mask: Union[np.ndarray, Tensor]):
     for i in range(6):
         if i<3:
             a = b = i
@@ -422,7 +427,7 @@ def _cart_4_tensor_to_Mandel_inplace(C4: Union[np.ndarray, torch.Tensor], C_2: U
             C_2[...,j,i] = Cij
     C_2[...,:,:] *= mask
 
-def _Mandel_to_cart_4_inplace(C: Union[np.ndarray, torch.Tensor], C4: Union[np.ndarray, torch.Tensor]):
+def _Mandel_to_cart_4_inplace(C: Union[np.ndarray, Tensor], C4: Union[np.ndarray, Tensor]):
     for i in range(1,7):
         if i<=3:
             a = b = i
@@ -459,42 +464,48 @@ def _Mandel_to_cart_4_inplace(C: Union[np.ndarray, torch.Tensor], C4: Union[np.n
             C4[..., d-1, c-1, b-1, a-1] = val
 # %%  TORCH FUNCTIONS ###
 #########################
-def stiffness_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
-    return tensor_cart_4_to_Mandel(_C)
-def compliance_cart_4_to_Mandel(_S: torch.Tensor) -> torch.Tensor:
-    return tensor_cart_4_to_Mandel(_S)
-def stiffness_Mandel_to_cart_4(_C: torch.Tensor) -> torch.Tensor:
-    return Mandel_to_cart_4_tensor(_C)
-def compliance_Mandel_to_cart_4(_S: torch.Tensor) -> torch.Tensor:
-    return Mandel_to_cart_4_tensor(_S)
+try:
+    import torch
 
-def tensor_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
-    s2 = np.sqrt(2)
-    mask = torch.tensor([[1,1,1,s2,s2,s2],
-                         [1,1,1,s2,s2,s2],
-                         [1,1,1,s2,s2,s2],
-                         [s2,s2,s2,2,2,2],
-                         [s2,s2,s2,2,2,2],
-                         [s2,s2,s2,2,2,2]], device=_C.device, dtype=_C.dtype)
-    if _C.dim() == 4:
-        C = _C.unsqueeze(0)
-    else:
-        C = _C
-    C_2 = _C.new_zeros((C.size(0),6,6))
-    _cart_4_tensor_to_Mandel_inplace(C, C_2, mask)
-    if _C.dim() == 4:
-        C_2.squeeze_(0)
-    return C_2
+    def stiffness_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
+        return tensor_cart_4_to_Mandel(_C)
+    def compliance_cart_4_to_Mandel(_S: torch.Tensor) -> torch.Tensor:
+        return tensor_cart_4_to_Mandel(_S)
+    def stiffness_Mandel_to_cart_4(_C: torch.Tensor) -> torch.Tensor:
+        return Mandel_to_cart_4_tensor(_C)
+    def compliance_Mandel_to_cart_4(_S: torch.Tensor) -> torch.Tensor:
+        return Mandel_to_cart_4_tensor(_S)
 
-def Mandel_to_cart_4_tensor(C: torch.Tensor) -> torch.Tensor:
-    # convert C_ij to C_abcd
-    if C.ndim==3:
-        _C = C
-    elif C.ndim==2:
-        _C = C.unsqueeze(0)
-    C4 = torch.zeros((_C.shape[0], 3,3,3,3), device=C.device, dtype=C.dtype)
-    _Mandel_to_cart_4_inplace(_C, C4)
+    def tensor_cart_4_to_Mandel(_C: torch.Tensor) -> torch.Tensor:
+        s2 = np.sqrt(2)
+        mask = torch.tensor([[1,1,1,s2,s2,s2],
+                            [1,1,1,s2,s2,s2],
+                            [1,1,1,s2,s2,s2],
+                            [s2,s2,s2,2,2,2],
+                            [s2,s2,s2,2,2,2],
+                            [s2,s2,s2,2,2,2]], device=_C.device, dtype=_C.dtype)
+        if _C.dim() == 4:
+            C = _C.unsqueeze(0)
+        else:
+            C = _C
+        C_2 = _C.new_zeros((C.size(0),6,6))
+        _cart_4_tensor_to_Mandel_inplace(C, C_2, mask)
+        if _C.dim() == 4:
+            C_2.squeeze_(0)
+        return C_2
 
-    if C.ndim==2:
-        C4.squeeze_(0)
-    return C4
+    def Mandel_to_cart_4_tensor(C: torch.Tensor) -> torch.Tensor:
+        # convert C_ij to C_abcd
+        if C.ndim==3:
+            _C = C
+        elif C.ndim==2:
+            _C = C.unsqueeze(0)
+        C4 = torch.zeros((_C.shape[0], 3,3,3,3), device=C.device, dtype=C.dtype)
+        _Mandel_to_cart_4_inplace(_C, C4)
+
+        if C.ndim==2:
+            C4.squeeze_(0)
+        return C4
+    
+except ImportError:
+    warnings.warn('torch not imported. Some functions will not be available.')

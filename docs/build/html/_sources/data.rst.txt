@@ -29,7 +29,3 @@ data.elasticity\_func module
    :members:
    :no-undoc-members:
    :show-inheritance:
-
-   
-
-

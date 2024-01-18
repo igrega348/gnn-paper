@@ -11,6 +11,7 @@ Welcome to gnn-paper's documentation!
    :caption: Contents:
 
    data
+   utils
 
 Indices and tables
 ==================
