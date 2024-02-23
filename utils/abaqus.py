@@ -540,7 +540,7 @@ def write_abaqus_inp_nopbc(
     nodes = lat.transformed_node_coordinates
     edges = lat.edge_adjacency
     if one_elset:
-        meshed_nodes, meshed_elements = mesh_lattice(nodes, edges, max_length=1, min_div=3, guess_normals=False)
+        meshed_nodes, meshed_elements = mesh_lattice(nodes, edges, max_length=1, min_div=3, _guess_normals=False)
     else:
         meshed_nodes, meshed_elements = mesh_lattice(nodes, edges, max_length=1, min_div=3)
     assert np.allclose(nodes, meshed_nodes[:len(nodes)]) # make sure physical nodes are copied without changing order
@@ -808,7 +808,7 @@ def get_results_from_json(fname: str) -> Dict:
 
     return {'job':jobname, 'name':name, 'compliance_tensors_M':compliance_tensors_M}
 
-def run_abq_sim(jobnames: Iterable, wdir: str = './abq_working_dir') -> List[Dict]:
+def run_abq_sim(jobnames: Iterable, wdir: str = './abq_working_dir', cleanup=None) -> List[Dict]:
     ABQ_ANALYSE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'abq_analyse_parallel.py')
 
     wdir = os.path.abspath(wdir)
@@ -825,28 +825,34 @@ def run_abq_sim(jobnames: Iterable, wdir: str = './abq_working_dir') -> List[Dic
     completed = subprocess.run('powershell "runscript.ps1"', shell=True, capture_output=True, cwd=wdir)
     print('Powershell task finished. Starting CAE post-processing...')
 
-    completed = subprocess.run(f'abaqus cae noGUI="{ABQ_ANALYSE}" -- abq_wdir "{wdir}"', shell=True, capture_output=True)
-    if completed.returncode!=0:
-        print(completed.stdout.decode('utf-8'))
-        print(completed.stderr.decode('utf-8'))
-    print('CAE post-processing task finished')
-
     # post-process jsons
-    outputs = []
-    for jobname in jobnames:
-        fname = os.path.join(wdir, f'{jobname}.json')
-        outputs.append(get_results_from_json(fname))
+    outputs = post_process_odbs(jobnames, wdir=wdir, cleanup=cleanup)
+
+    # completed = subprocess.run(f'abaqus cae noGUI="{ABQ_ANALYSE}" -- abq_wdir "{wdir}"', shell=True, capture_output=True)
+    # if completed.returncode!=0:
+    #     print(completed.stdout.decode('utf-8'))
+    #     print(completed.stderr.decode('utf-8'))
+    # print('CAE post-processing task finished')
+
+    # # post-process jsons
+    # outputs = []
+    # for jobname in jobnames:
+    #     fname = os.path.join(wdir, f'{jobname}.json')
+    #     outputs.append(get_results_from_json(fname))
 
     return outputs
 
-def post_process_odbs(jobnames: Iterable, wdir: str = './abq_working_dir') -> List[Dict]:
+def post_process_odbs(jobnames: Iterable, wdir: str = './abq_working_dir', cleanup=None) -> List[Dict]:
     ABQ_ANALYSE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'abq_analyse_parallel.py')
 
     wdir = os.path.abspath(wdir)
 
     print('Working directory: ', wdir)
-    print('Running jobs... ', jobnames)
-    completed = subprocess.run(f'abaqus cae noGUI="{ABQ_ANALYSE}" -- abq_wdir "{wdir}"', shell=True, capture_output=True)
+    print('Post-processing jobs... ', jobnames)
+    cmd = f'abaqus cae noGUI="{ABQ_ANALYSE}" -- --wdir "{wdir}" --jobs {" ".join(jobnames)}'
+    if cleanup is not None:
+        cmd += f' --cleanup {cleanup}'
+    completed = subprocess.run(cmd, shell=True, capture_output=True)
     if completed.returncode!=0:
         print(completed.stdout.decode('utf-8'))
         print(completed.stderr.decode('utf-8'))

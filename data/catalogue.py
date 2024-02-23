@@ -482,7 +482,8 @@ class Catalogue:
             outlines.extend(self.lines[name])
         
         outlines = [line + '\n' for line in outlines]
-        os.makedirs(os.path.dirname(fn), exist_ok=True)
+        if len(os.path.dirname(fn))>0:
+            os.makedirs(os.path.dirname(fn), exist_ok=True)
         with open(fn, 'w') as fout:
             fout.writelines(outlines)
 

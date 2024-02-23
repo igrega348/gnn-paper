@@ -373,6 +373,7 @@ def plotly_elasticity_surf(
     S: np.ndarray, 
     title: str='',
     fig=None, subplot: Optional[dict] = None,
+    clim: Optional[Tuple[float, float]] = None,
     ):
     assert S.shape==(3,3,3,3)
         
@@ -411,8 +412,9 @@ def plotly_elasticity_surf(
     else:
         subplot_args = {}
 
+    clim = clim or (np.min(R), np.max(R))
     fig.add_trace(
-        go.Surface(x=X, y=Y, z=Z, surfacecolor=R),
+        go.Surface(x=X, y=Y, z=Z, surfacecolor=R, cmin=clim[0], cmax=clim[1]),
         **subplot_args
     )
 
@@ -427,10 +429,11 @@ def plotly_stiffness_surf(
     title: str='',
     fig=None, subplot: Optional[dict] = None,
     clim: Optional[Tuple[float, float]] = None,
-    ):
+    resolution: int = 100j,
+    ) -> go.Figure:
     assert C.shape==(3,3,3,3)
         
-    u, v = np.mgrid[0:2*np.pi:100j, 0:np.pi:100j]
+    u, v = np.mgrid[0:2*np.pi:resolution, 0:np.pi:resolution]
 
 
     X = np.sin(v)*np.cos(u)
@@ -467,7 +470,7 @@ def plotly_stiffness_surf(
 
     clim = clim or (np.min(R), np.max(R))
     fig.add_trace(
-        go.Surface(x=X, y=Y, z=Z, surfacecolor=R, cmin=clim[0], cmax=clim[1]),
+        go.Surface(x=X, y=Y, z=Z, surfacecolor=R, cmin=clim[0], cmax=clim[1], lighting=dict(roughness=0.25, specular=0.1)),
         **subplot_args
     )
 
@@ -479,15 +482,31 @@ def plotly_stiffness_surf(
 
 def plotly_scaling_surf(
     C: np.ndarray, 
-    rel_dens: np.ndarray,
+    rel_dens: Iterable[float],
     title: str='',
-    fig=None, subplot: Optional[dict] = None,
-    ):
+    fig: Optional[go.Figure] = None, 
+    subplot: Optional[dict] = None,
+    resolution: int = 100j,
+    ) -> go.Figure:
+    """Plot the surface of scaling exponent for a given stiffness tensor
+
+    Args:
+        C (np.ndarray): stacked compliance tensors [n_rel_dens, 3,3,3,3]
+        rel_dens (Iterable[float]): corresponding relative densities
+        title (str, optional): title for plot. Defaults to ''.
+        fig (Optional[dict], go.Figure): can pass an existing figure. Defaults to None.
+        subplot (Optional[dict], optional): subplot arguments. Expect keys ['index','ncol']. Defaults to None.
+
+    Returns:
+        go.Figure: plotly figure
+    """
+
+    #     C (np.ndarray): stacked compliance tensors [n_rel_dens, 3,3,3,3]
     assert C.ndim==5
     assert C.shape[1:]==(3,3,3,3)
     assert len(rel_dens)==C.shape[0]
         
-    u, v = np.mgrid[0:2*np.pi:100j, 0:np.pi:100j]
+    u, v = np.mgrid[0:2*np.pi:resolution, 0:np.pi:resolution]
 
 
     X = np.sin(v)*np.cos(u)
@@ -528,7 +547,7 @@ def plotly_scaling_surf(
         subplot_args = {}
 
     fig.add_trace(
-        go.Surface(x=X, y=Y, z=Z, surfacecolor=R),
+        go.Surface(x=X, y=Y, z=Z, surfacecolor=R, cmin=1, cmax=2),
         **subplot_args
     )
 

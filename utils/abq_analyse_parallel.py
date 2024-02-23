@@ -5,6 +5,7 @@ from abaqusConstants import *
 import __main__
 import os
 import sys
+import argparse
 import visualization
 import json
 from collections import OrderedDict
@@ -123,15 +124,54 @@ def data_extractor(wdir):
                     if jobname in f and not (f.endswith('.json') or f.endswith('.lat')):
                         os.remove(os.path.join(wdir, f))
             
+def data_extractor(wdir, jobs, cleanup):
+    with open('abq_extract_log.log', 'a') as log_file:
+        
+        to_process = os.listdir(wdir)
+        processed = []
+        
+        while len(to_process)>0:
+  
+            wdir_files = os.listdir(wdir)
+        
+            odb_names = [ (os.path.splitext(f)[0]) for f in wdir_files if f.endswith('.odb') ]
+            lck_names = [ (os.path.splitext(f)[0]) for f in wdir_files if f.endswith('.lck') ]
+            odb_ready = set(odb_names) - set(lck_names)
+            to_process = list( odb_ready - set(processed) )
+            if jobs is not None:
+                to_process = [job for job in to_process if job in jobs]
+            
+            while len(to_process) > 0:
+                jobname = to_process.pop()
+                processed.append(jobname)
+                
+                extract_one(jobname, wdir, log_file)
+
+                if not cleanup=='NONE':
+                    # remove files which have the job name but are not json or lat subject to cleanup filter
+                    wdir_files = os.listdir(wdir)
+                    for f in wdir_files:
+                        if jobname in f and not (f.endswith('.json') or f.endswith('.lat')):
+                            if cleanup=='ODB+INP':
+                                if f.endswith('.odb') or f.endswith('.inp'):
+                                    continue
+                            os.remove(os.path.join(wdir, f))                                
+
 ###########################################################################
-args = sys.argv
-i = args.index('abq_wdir')
-wdir = args[i+1]
-assert os.path.isdir(wdir)
+parser = argparse.ArgumentParser()
+parser.add_argument('--wdir', help='Working directory', required=True)
+parser.add_argument('--jobs', nargs='+', help='List of jobs to process. If not provided, process all available input files in the working directory', required=False)
+parser.add_argument('--cleanup', type=str, choices=['NONE', 'ODB+INP', 'ALL'], help='Cleanup after processing. NONE: do not remove any files. ODB+INP: keep the odb and inp files. ALL: remove all files except json and lat files', required=False, default='ODB+INP')
+
+print sys.argv
+args, unknown = parser.parse_known_args()
+args.wdir = os.path.abspath(args.wdir)
+
+assert os.path.isdir(args.wdir)
 count = 0
 
 with open('abq_extract_log.log', 'w') as log:
-    print >> log, "Detected folder ", wdir
+    print >> log, "Detected folder ", args.wdir
 
-data_extractor(wdir)
+data_extractor(args.wdir, jobs=args.jobs, cleanup=args.cleanup)
 

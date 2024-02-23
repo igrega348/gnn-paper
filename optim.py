@@ -23,15 +23,17 @@ from pytorch_lightning.utilities.seed import seed_everything
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Batch, Data
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 from data.datasets import GLAMM_rhotens_Dataset as GLAMM_Dataset
 from data import elasticity_func, Catalogue, Lattice
 from utils import plotting, abaqus
 from exp_180.model_torch import PositiveLiteGNN
 from exp_180.train_mace import LightningWrappedModel, RotateLat, load_datasets, obtain_errors, aggr_errors
-
+import gif
+import PIL
+import io
 n_2_bn = lambda name: '_'.join(name.split('_')[:3])
-
 # %%
 num_hp_trial = 60
 params_path = Path(__file__).parent.parent / Path(f'gnn-fresh-exp/exp-180/results/params-{num_hp_trial}.json')
@@ -52,12 +54,12 @@ rank_zero_info('Testing')
 test_dset = load_datasets(which='0imp', tag='test', parent='../ICLR2024/datasets', reldens_norm=False, rotate=False)
 train_dset = load_datasets(which='0imp', tag='train', parent='../ICLR2024/datasets', reldens_norm=False, rotate=False)
 # %%
-train_loader = DataLoader(
+loader = DataLoader(
     dataset=train_dset, batch_size=64, 
     shuffle=False, 
 )
-test_results = trainer.predict(lightning_model, train_loader, return_predictions=True, ckpt_path=ckpt_path)
-# %% find best performing lattices
+test_results = trainer.predict(lightning_model, loader, return_predictions=True, ckpt_path=ckpt_path)
+# %% aggregate
 names = np.concatenate([res[1].name for res in test_results], axis=0)
 rel_dens = np.concatenate([res[1].rel_dens for res in test_results], axis=0)
 preds = np.concatenate([res[0]['stiffness'].detach().cpu().numpy() for res in test_results], axis=0)
@@ -89,6 +91,27 @@ print(name)
 inds = np.flatnonzero(names==name)
 C4 = target_4[inds[0]].numpy()
 plotting.plotly_stiffness_surf(C4)
+# %%
+def make_polar_plot(C4: np.ndarray, fig = None):
+
+    phi = np.linspace(0, 2*np.pi, 200)
+    z = np.zeros_like(phi)
+    x = np.cos(phi)
+    y = np.sin(phi)
+    direc = np.stack([x,y,z], axis=1)
+
+    e = np.einsum('...ijkl,pi,pj,pk,pl->...p', C4, direc, direc, direc, direc)
+    # polar plot
+    if fig is None:
+        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+    else:
+        ax = fig.axes[0]
+    ax.plot(phi, e)
+    # remove grid
+    ax.grid(False)
+    # set limits
+    ax.set_ylim(0, 55)
+    return fig, ax
 # %%
 data = cat[name]
 lat = Lattice(
@@ -123,17 +146,20 @@ with np.printoptions(precision=3, suppress=True):
 C4 = elasticity_func.stiffness_Mandel_to_cart_4(torch.from_numpy(C2))
 plotting.plotly_stiffness_surf(C4).show()
 fig, ax = make_polar_plot(C4.numpy(), fig)
-fig.savefig(f'C:/temp/optim/{n_2_bn(name)}_initial.svg')
+# fig.savefig(f'C:/temp/optim/{n_2_bn(name)}_initial.svg')
 # %%
+def graph_to_lat(batch: Batch):
+    num_edges = batch.edge_index.shape[1]//2
+    lat = Lattice(
+        name='initial',
+        nodal_positions=batch.positions.numpy(),
+        fundamental_edge_adjacency=batch.edge_index.numpy().T[:num_edges,:],
+        fundamental_tesselation_vecs=np.concatenate([np.zeros((num_edges,3)), batch.shifts.numpy()[:num_edges,:]], axis=1)
+    )
+    return lat
 batch = Batch.from_data_list([train_dset[inds[0]]])
 # plot initial lattice
-num_edges = batch.edge_index.shape[1]//2
-lat = Lattice(
-    name='initial',
-    nodal_positions=batch.positions.numpy(),
-    fundamental_edge_adjacency=batch.edge_index.numpy().T[:num_edges,:],
-    fundamental_tesselation_vecs=np.concatenate([np.zeros((num_edges,3)), batch.shifts.numpy()[:num_edges,:]], axis=1)
-)
+lat = graph_to_lat(batch)
 lat = lat.create_windowed()
 lat.calculate_fundamental_representation()
 abaqus.write_abaqus_inp_normals(
@@ -150,15 +176,20 @@ abaqus.write_abaqus_inp_normals(
             'Imperfection level':f'custom',
             'Hash':'2390434320',
         },
-        fname=os.path.join('C:/temp/optim/', 'init.inp'),
+        fname=os.path.join('C:/temp/optim_ttt/', 'init.inp'),
         element_type='B31',
         mesh_params={'max_length':1, 'min_div':3}
     )
 
 plotting.plotly_unit_cell_3d(lat).show()
 # initial surface
+frames = []
 C4 = elasticity_func.stiffness_Mandel_to_cart_4(batch.stiffness).squeeze()
-plotting.plotly_stiffness_surf(C4.numpy()).show()
+fig = plotting.plotly_stiffness_surf(C4.numpy(), clim=(15,45))
+fig.update_layout(
+    scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':3} for x in 'xyz'},
+)
+frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
 # target surface
 C4 = elasticity_func.stiffness_Mandel_to_cart_4(torch.from_numpy(C2))
 plotting.plotly_stiffness_surf(C4.numpy()).show()
@@ -178,6 +209,16 @@ for i in pbar:
     # if (i % 10) == 0:
         # print(output)
         # print(target)
+    # plot
+    fig = plotting.plotly_stiffness_surf(
+        elasticity_func.Mandel_to_cart_4_tensor(output).squeeze().detach().cpu().numpy(),
+        clim=(15,45)
+        )
+    fig.update_layout(
+        scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':3} for x in 'xyz'},
+    )
+    frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+    #
     loss = torch.nn.functional.mse_loss(output, torch.from_numpy(C2).view(1,6,6))
     grad = torch.autograd.grad(loss, batch.positions)
     positions -= lr*grad[0]
@@ -210,7 +251,7 @@ abaqus.write_abaqus_inp_normals(
             'Imperfection level':f'custom',
             'Hash':'2390434320',
         },
-        fname=os.path.join('C:/temp/optim/', 'optim.inp'),
+        fname=os.path.join('C:/temp/optim_ttt/', 'optim.inp'),
         element_type='B31',
         mesh_params={'max_length':1, 'min_div':3}
     )
@@ -218,7 +259,12 @@ abaqus.write_abaqus_inp_normals(
 plotting.plotly_unit_cell_3d(lat).show()
 # final surface
 C4 = elasticity_func.stiffness_Mandel_to_cart_4(output).squeeze()
-plotting.plotly_stiffness_surf(C4.detach().numpy()).show()
+fig = plotting.plotly_stiffness_surf(C4.detach().numpy(), clim=(15,45))
+fig.update_layout(
+    scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':3} for x in 'xyz'},
+)
+frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+gif.save(frames, '../tea-time-talk/plots/optim.gif', duration=50, overlapping=False)
 # %%
 fig, ax = make_polar_plot(C4.detach().numpy())
 fig.savefig(f'C:/temp/optim/{n_2_bn(name)}_final.svg')
@@ -260,24 +306,176 @@ def export_to_blender(lat: Lattice):
 # %%
 export_to_blender(lat)
 # %%
-def make_polar_plot(C4: np.ndarray, fig = None):
 
-    phi = np.linspace(0, 2*np.pi, 200)
-    z = np.zeros_like(phi)
-    x = np.cos(phi)
-    y = np.sin(phi)
-    direc = np.stack([x,y,z], axis=1)
+# %% Tea-time talk
+def graph_to_lat(batch: Batch):
+    num_edges = batch.edge_index.shape[1]//2
+    lat = Lattice(
+        name='initial',
+        nodal_positions=batch.positions.detach().cpu().numpy(),
+        fundamental_edge_adjacency=batch.edge_index.numpy().T[:num_edges,:],
+        fundamental_tesselation_vecs=np.concatenate([np.zeros((num_edges,3)), batch.shifts.numpy()[:num_edges,:]], axis=1)
+    )
+    return lat
+batch = Batch.from_data_list([train_dset[inds[0]]])
 
-    e = np.einsum('...ijkl,pi,pj,pk,pl->...p', C4, direc, direc, direc, direc)
-    # polar plot
-    if fig is None:
-        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-    else:
-        ax = fig.axes[0]
-    ax.plot(phi, e)
-    # remove grid
-    ax.grid(False)
-    # set limits
-    ax.set_ylim(0, 55)
-    return fig, ax
+# initial surface
+frames = []
+C4 = elasticity_func.stiffness_Mandel_to_cart_4(batch.stiffness).squeeze()
+fig = plotting.plotly_stiffness_surf(C4.numpy(), clim=(15,45))
+fig.update_layout(
+    scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':5} for x in 'xyz'},
+)
+frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+# target surface
+C4 = elasticity_func.stiffness_Mandel_to_cart_4(torch.from_numpy(C2))
+plotting.plotly_stiffness_surf(C4.numpy()).show()
+init_positions = batch.positions.clone()
+positions = batch.positions.clone() + torch.randn_like(batch.positions)*0.00001
+
+lat_dicts = {}
+losses = []
+C2s = []
+
+pbar = trange(50)
+for i in pbar:
+    batch = Batch.from_data_list([train_dset[inds[0]]])
+    batch.positions = positions.clone()
+    batch.positions.requires_grad = True
+    lr = 0.0001
+    output = lightning_model.model(batch)['stiffness']
+ 
+    fig = plotting.plotly_stiffness_surf(
+        elasticity_func.Mandel_to_cart_4_tensor(output).squeeze().detach().cpu().numpy(),
+        clim=(15,45)
+        )
+    fig.update_layout(
+        scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':5} for x in 'xyz'},
+    )
+    frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+    #
+    loss = torch.nn.functional.mse_loss(output, torch.from_numpy(C2).view(1,6,6))
+    grad = torch.autograd.grad(loss, batch.positions)
+    positions -= lr*grad[0]
+    pbar.set_description(f'loss: {loss.item()}')
+    losses.append(loss.item())
+    C2s.append(output.detach().cpu().numpy().squeeze())
+
+    lat = graph_to_lat(batch)
+    lat_dict = lat.to_dict()
+    lat_dict['name'] = f'optim_{i}'
+    lat_dicts[f'optim_{i}'] = lat_dict
+
+Catalogue.from_dict(lat_dicts).to_file('../tea-time-talk/optim.lat')
+
+
+# final surface
+C4 = elasticity_func.stiffness_Mandel_to_cart_4(output).squeeze()
+fig = plotting.plotly_stiffness_surf(C4.detach().numpy(), clim=(15,45))
+fig.update_layout(
+    scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':5} for x in 'xyz'},
+)
+frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+gif.save(frames, '../tea-time-talk/plots/optim.gif', duration=100, overlapping=False)
+# %%
+# animate plot of losses and C2s
+fig, ax = plt.subplots()
+l = ax.plot(losses[:2], marker='o')
+ax.set_ylim(-0.05, 3)
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Loss')
+
+def update(i):
+    l[0].set_data(range(i), losses[:i])
+    ax.set_xlim(-1, i)
+    return l
+
+ani = animation.FuncAnimation(fig, update, frames=range(2, len(losses)), interval=100, blit=True)
+ani.save('../tea-time-talk/plots/losses.gif')
+# %% animate C2s as text in matrix
+fig, ax = plt.subplots()
+ax.set_axis_off()
+tbl = ax.table(cellText=C2s[0].round(3), loc='center')
+tbl.set_fontsize(16)
+tbl.scale(1, 2)
+# make it look like matrix
+for (row, col), cell in tbl.get_celld().items():
+    cell.set_linewidth(0)
+
+def update(i):
+    # tbl = ax.table(cellText=C2s[i].round(3), loc='center')
+    # tbl.scale(1, 2)
+    # make it look like matrix
+
+    for (row, col), cell in tbl.get_celld().items():
+        cell.set_linewidth(0)
+        cell._text.set_text(f'{C2s[i].round(3)[row, col]:.2g}')
+    return tbl
+
+ani = animation.FuncAnimation(fig, update, frames=range(1, len(C2s)), interval=100)
+ani.save('../tea-time-talk/plots/C2s.gif')
+# %% strut radii optimization for octet
+
+frames = []
+bn = [n_2_bn(x) for x in train_dset.data.name]
+batch = Batch.from_data_list([train_dset[bn.index('cub_Z12.0_E19')]])
+C2 = batch.stiffness.clone().numpy().squeeze()
+C2[2,2] -= 10
+
+C4 = elasticity_func.stiffness_Mandel_to_cart_4(batch.stiffness).squeeze()
+fig = plotting.plotly_stiffness_surf(C4.numpy(), clim=(15,45))
+fig.update_layout(
+    scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':5} for x in 'xyz'},
+)
+frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+# target surface
+C4 = elasticity_func.stiffness_Mandel_to_cart_4(torch.from_numpy(C2))
+plotting.plotly_stiffness_surf(C4.numpy()).show()
+
+init_radii = batch.edge_attr.clone()
+radii = batch.edge_attr.clone()
+
+lat_dicts = {}
+losses = []
+C2s = []
+
+pbar = trange(150)
+for i in pbar:
+    batch = Batch.from_data_list([train_dset[bn.index('cub_Z12.0_E19')]])
+    batch.edge_attr = radii.clone()
+    batch.edge_attr.requires_grad = True
+    lr = 0.000005
+    output = lightning_model.model(batch)['stiffness']
+ 
+    # fig = plotting.plotly_stiffness_surf(
+    #     elasticity_func.Mandel_to_cart_4_tensor(output).squeeze().detach().cpu().numpy(),
+    #     clim=(15,45)
+    #     )
+    # fig.update_layout(
+    #     scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':5} for x in 'xyz'},
+    # )
+    # frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+    #
+    loss = torch.nn.functional.mse_loss(output, torch.from_numpy(C2).view(1,6,6))
+    grad = torch.autograd.grad(loss, batch.edge_attr)
+    radii -= lr*grad[0]
+    pbar.set_description(f'loss: {loss.item()}')
+    losses.append(loss.item())
+    C2s.append(output.detach().cpu().numpy().squeeze())
+
+    lat = graph_to_lat(batch)
+    lat_dict = lat.to_dict()
+    lat_dict['name'] = f'optim_{i}'
+    lat_dicts[f'optim_{i}'] = lat_dict
+
+# Catalogue.from_dict(lat_dicts).to_file('../tea-time-talk/optim_radii.lat')
+
+# final surface
+C4 = elasticity_func.stiffness_Mandel_to_cart_4(output).squeeze()
+fig = plotting.plotly_stiffness_surf(C4.detach().numpy(), clim=(15,45))
+fig.update_layout(
+    scene={f'{x}axis': {'showbackground': False, 'range':[-45,45], 'nticks':5} for x in 'xyz'},
+)
+frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+gif.save(frames, '../tea-time-talk/plots/optim_radii.gif', duration=100, overlapping=False)
 # %%

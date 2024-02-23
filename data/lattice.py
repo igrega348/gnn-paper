@@ -37,7 +37,7 @@ class Lattice:
     Youngs_moduli: dict
     scaling_exponents: dict
     # other properties
-    lattice_constants: npt.NDArray[np.float_] = np.array([1.,1.,1.,90,90,90])
+    lattice_constants: npt.NDArray[np.float_]
     rel_dens: float
     ATTRS_TO_COPY: List = ['name', 'lattice_constants', 'UC_L']
     INIT_FORMAT: str = 'Lattice can be initialised in one of 3 ways.'\
@@ -96,6 +96,11 @@ class Lattice:
                 >>> lat
                 {'num_nodes': 7, 'num_edges': 6}
 
+            If both edge adjacency and fundamental edge adjacency are specified,
+            simple checks are performed that the fundamental representation is 
+            consistent with the edge adjacency. In this case, lattice must be specified
+            in a valid windowed configuration.
+
             Lattice can also be initialised by directly \
                 unpacking the catalogue dictionary
                 
@@ -126,6 +131,8 @@ class Lattice:
         
         if isinstance(lattice_constants, Iterable):
             self.lattice_constants = np.array(lattice_constants, dtype=float)
+        else:
+            self.lattice_constants = np.array([1,1,1,90,90,90], dtype=float)
         
         if 'compliance_tensors' in kwargs:
             import warnings
@@ -150,9 +157,8 @@ class Lattice:
 
         if (isinstance(nodal_positions, Iterable)
             and isinstance(edge_adjacency, Iterable)):
+            # Initialization from nodal positions and edge adjacency
             assert edge_coordinates is None, self.INIT_FORMAT
-            assert fundamental_edge_adjacency is None, self.INIT_FORMAT
-            assert fundamental_tesselation_vecs is None, self.INIT_FORMAT
             nodal_positions = np.atleast_2d(nodal_positions).astype(np.float_)
             edges = np.atleast_2d(edge_adjacency)
             assert nodal_positions.shape[1]==3
@@ -164,12 +170,37 @@ class Lattice:
             edges = edges[np.argsort(edges[:,0]), :]
             assert edges.max()<self.num_nodes
             self.edge_adjacency = edges
+            if isinstance(fundamental_edge_adjacency, Iterable):
+                assert isinstance(fundamental_tesselation_vecs, Iterable)
+                fundamental_edge_adjacency = np.atleast_2d(fundamental_edge_adjacency)
+                fundamental_tesselation_vecs = np.atleast_2d(fundamental_tesselation_vecs)
+                if fundamental_tesselation_vecs.shape[1]==3:
+                    fundamental_tesselation_vecs = np.hstack(
+                        (np.zeros((fundamental_tesselation_vecs.shape[0],3)), fundamental_tesselation_vecs)
+                    )
+                # checks that fundamental representation is consistent
+                assert self.check_window_conditions()
+                fund_uq_nodes = np.unique(fundamental_edge_adjacency)
+                assert set(fund_uq_nodes)==self.node_types['inner_nodes']
+                edge_vecs_0 = self._node_adj_to_ec(nodal_positions, edges)
+                edge_vecs_0 = edge_vecs_0[:,3:] - edge_vecs_0[:,:3]
+                edge_vecs_1 = self._node_adj_to_ec(nodal_positions, fundamental_edge_adjacency)
+                edge_vecs_1 += fundamental_tesselation_vecs
+                edge_vecs_1 = edge_vecs_1[:,3:] - edge_vecs_1[:,:3]
+                # normalize
+                edge_vecs_0 = edge_vecs_0/np.linalg.norm(edge_vecs_0, axis=1, keepdims=True)
+                edge_vecs_1 = edge_vecs_1/np.linalg.norm(edge_vecs_1, axis=1, keepdims=True)
+                edge_vecs_0 = np.unique(np.around(edge_vecs_0, 3), axis=0)
+                edge_vecs_1 = np.unique(np.around(edge_vecs_1, 3), axis=0)
+                assert edge_vecs_0.shape[0]==edge_vecs_1.shape[0]
+                assert np.allclose(edge_vecs_0, edge_vecs_1)
+                self.fundamental_edge_adjacency = fundamental_edge_adjacency
+                self.fundamental_tesselation_vecs = fundamental_tesselation_vecs
         elif (isinstance(nodal_positions, Iterable)
-            and isinstance(fundamental_edge_adjacency, Iterable)):
+            and isinstance(fundamental_edge_adjacency, Iterable)) and edge_adjacency is None:
+            # Initialization from fundamental representation
             assert edge_coordinates is None, self.INIT_FORMAT
-            assert edge_adjacency is None, self.INIT_FORMAT
             assert isinstance(fundamental_tesselation_vecs, Iterable)
-
             nodal_positions = np.atleast_2d(nodal_positions).astype(np.float_)
             fundamental_edge_adjacency = np.atleast_2d(fundamental_edge_adjacency)
             fundamental_tesselation_vecs = np.atleast_2d(fundamental_tesselation_vecs)
@@ -186,8 +217,11 @@ class Lattice:
             edge_coords += fundamental_tesselation_vecs
             self.update_representations(edge_coords=edge_coords)
         elif isinstance(edge_coordinates, Iterable):
+            # Initialization from edge coordinates
             assert nodal_positions is None, self.INIT_FORMAT
             assert edge_adjacency is None, self.INIT_FORMAT
+            assert fundamental_edge_adjacency is None, self.INIT_FORMAT
+            assert fundamental_tesselation_vecs is None, self.INIT_FORMAT
             edge_coordinates = np.atleast_2d(edge_coordinates)
             assert edge_coordinates.shape[1]==6
             self.update_representations(edge_coords=edge_coordinates)
@@ -195,6 +229,7 @@ class Lattice:
             raise NotImplementedError(
                 'Lattice cell can be initialised from either '\
                 'nodal positions and edge adjacency, or ' \
+                'from fundamental representation, or ' \
                 'from edge coordinates'
             )
 
@@ -206,6 +241,9 @@ class Lattice:
             repr_dict['num_nodes'] = self.num_nodes
         if hasattr(self, 'num_edges'):
             repr_dict['num_edges'] = self.num_edges
+        if hasattr(self, 'fundamental_edge_adjacency'):
+            repr_dict['num_fundamental_nodes'] = self.num_fundamental_nodes
+            repr_dict['num_fundamental_edges'] = self.num_fundamental_edges
         return repr_dict.__repr__()
 
     @property
@@ -355,7 +393,7 @@ class Lattice:
             np.ndarray (N,3): transformed coordinates
         """
         coords = np.reshape(coordinates, (-1,3))
-        transform_matrix = self.get_transform_matrix()
+        transform_matrix = self.transform_matrix
         nodes_out = np.matmul( transform_matrix, np.transpose(coords) )
         return np.transpose( nodes_out )
 
@@ -1742,7 +1780,7 @@ class Lattice:
 
         return refined_lattice
 
-    def create_tesselated(self, nx: int, ny: int, nz: int) -> "Lattice":
+    def create_tesselated(self, nx: int, ny: int, nz: int, merge_colinear = True) -> "Lattice":
         """Create periodic tesselation of the lattice
 
         Args:
@@ -1803,7 +1841,8 @@ class Lattice:
             if hasattr(self, attr):
                 setattr(tesselated_lattice, attr, getattr(self, attr))
         tesselated_lattice.lattice_constants = new_lattice_constants
-        tesselated_lattice.merge_colinear_edges()
+        if merge_colinear:
+            tesselated_lattice.merge_colinear_edges()
         return tesselated_lattice
 
     def to_dict(self, fundamental: bool = True) -> dict:
